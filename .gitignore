@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+.turbo/
+dist/
+build/
+out/
+.vercel/
+
+# Test coverage
+coverage/
+*.lcov
+
+# Environment — NEVER commit (.env.example is the only exception, tracked explicitly)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# IDE / editor
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# TypeScript
+*.tsbuildinfo
+
+# Drizzle
+drizzle/meta/_journal.json.bak
+
+# Local Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+.secrets/

@@ -1,0 +1,13 @@
+{
+  "name": "@nichefinder/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'dev not yet wired — Phase 1.4' && exit 0",
+    "build": "echo 'build not yet wired — Phase 1.4' && exit 0",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "echo 'no tests yet' && exit 0"
+  }
+}

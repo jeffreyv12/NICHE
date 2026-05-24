@@ -1,0 +1,13 @@
+{
+  "name": "@nichefinder/scrapers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'dev not yet wired — Phase 2.1' && exit 0",
+    "build": "tsc -p tsconfig.json --emitDeclarationOnly false || true",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "echo 'no tests yet' && exit 0"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@nichefinder/db": ["packages/db/src/index.ts"],
+      "@nichefinder/db/*": ["packages/db/src/*"],
+      "@nichefinder/ui": ["packages/ui/src/index.ts"],
+      "@nichefinder/ui/*": ["packages/ui/src/*"],
+      "@nichefinder/shared": ["packages/shared/src/index.ts"],
+      "@nichefinder/shared/*": ["packages/shared/src/*"],
+      "@nichefinder/agent-sdk": ["packages/agent-sdk/src/index.ts"],
+      "@nichefinder/agent-sdk/*": ["packages/agent-sdk/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next", ".turbo"]
+}
