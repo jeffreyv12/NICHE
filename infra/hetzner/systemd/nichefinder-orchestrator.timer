@@ -1,0 +1,11 @@
+[Unit]
+Description=NicheFinder Orchestrator — weekly Mon 06:00 NL
+Documentation=docs/PHASE_PLAN.md Phase 6.1
+
+[Timer]
+OnCalendar=Mon *-*-* 06:00:00
+Persistent=true
+Unit=nichefinder-runner@orchestrator.service
+
+[Install]
+WantedBy=timers.target

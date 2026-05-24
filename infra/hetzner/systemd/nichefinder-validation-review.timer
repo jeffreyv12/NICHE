@@ -1,0 +1,11 @@
+[Unit]
+Description=NicheFinder Validation Review — Fri 18:00 NL
+Documentation=docs/PHASE_PLAN.md Phase 3.3
+
+[Timer]
+OnCalendar=Fri *-*-* 18:00:00
+Persistent=true
+Unit=nichefinder-runner@validation-review.service
+
+[Install]
+WantedBy=timers.target

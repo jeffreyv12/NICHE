@@ -1,0 +1,11 @@
+[Unit]
+Description=NicheFinder Conversions Reconcile — daily 06:30 NL
+Documentation=docs/PHASE_PLAN.md Phase 3.2
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+Persistent=true
+Unit=nichefinder-runner@conversions-reconcile.service
+
+[Install]
+WantedBy=timers.target

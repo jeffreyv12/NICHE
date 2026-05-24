@@ -1,0 +1,11 @@
+[Unit]
+Description=NicheFinder Promotion-Gate Evaluation — Sun 04:00 NL
+Documentation=docs/PHASE_PLAN.md Phase 5.4
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+Unit=nichefinder-runner@promotion-eval.service
+
+[Install]
+WantedBy=timers.target

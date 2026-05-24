@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-test:
+    name: lint + typecheck + test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (Biome)
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+        env:
+          # Tests must not need real secrets. Anything that needs them runs
+          # at deploy time, not on PRs.
+          NODE_ENV: test
+
+  env-parity:
+    name: .env.example ↔ shared/env.ts parity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Check env parity
+        run: node scripts/check-env-parity.mjs
+
+  secrets-scan:
+    name: pre-commit secrets check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Reject staged .env / secret files
+        run: |
+          set -e
+          # Re-run the same guard the local hook uses, against the PR's changed file list.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD > changed.txt
+          else
+            git diff --name-only --diff-filter=AM HEAD~1 HEAD > changed.txt
+          fi
+          if [ -s changed.txt ]; then
+            xargs -a changed.txt node ./scripts/check-no-env.mjs
+          fi

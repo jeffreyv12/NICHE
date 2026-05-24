@@ -1,0 +1,44 @@
+name: Deploy DB migrations
+
+# Runs after every merge to main. Vercel handles the web deploy itself via the
+# GitHub integration; this workflow only applies pending Postgres migrations.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/db/migrations/**'
+      - 'packages/db/src/**'
+      - '.github/workflows/deploy-db.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-db
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply Drizzle migrations to Supabase production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrate (drizzle-kit migrate)
+        run: pnpm db:migrate
+        env:
+          # Supabase direct (unpooled) URL; required by drizzle-kit.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

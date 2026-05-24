@@ -1,0 +1,11 @@
+[Unit]
+Description=NicheFinder Kill Sweep — Sun 04:30 NL
+Documentation=docs/PHASE_PLAN.md Phase 6.2
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+Unit=nichefinder-runner@kill-sweep.service
+
+[Install]
+WantedBy=timers.target

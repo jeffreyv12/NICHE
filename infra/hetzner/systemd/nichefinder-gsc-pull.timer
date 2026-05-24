@@ -1,0 +1,11 @@
+[Unit]
+Description=NicheFinder GSC Pull — daily 05:30 NL
+Documentation=docs/PHASE_PLAN.md Phase 3.2
+
+[Timer]
+OnCalendar=*-*-* 05:30:00
+Persistent=true
+Unit=nichefinder-runner@gsc-pull.service
+
+[Install]
+WantedBy=timers.target

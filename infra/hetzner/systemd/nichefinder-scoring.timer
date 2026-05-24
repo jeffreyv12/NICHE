@@ -1,0 +1,11 @@
+[Unit]
+Description=NicheFinder Scoring — nightly Sun 03:30 NL
+Documentation=docs/PHASE_PLAN.md Phase 2.3
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00
+Persistent=true
+Unit=nichefinder-runner@scoring.service
+
+[Install]
+WantedBy=timers.target

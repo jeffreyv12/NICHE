@@ -1,0 +1,52 @@
+name: Deploy scrapers to Hetzner
+
+# Triggered on main merge when scrapers code changes. SSHes to the Hetzner CX22
+# box, rsyncs the built artifact, and restarts the systemd units.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/scrapers/**'
+      - 'packages/agent-sdk/**'
+      - 'packages/db/**'
+      - 'packages/shared/**'
+      - 'infra/hetzner/**'
+      - '.github/workflows/deploy-hetzner.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-hetzner
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+
+      - name: Install + build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @nichefinder/scrapers build
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.HETZNER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: bash infra/hetzner/deploy.sh
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}

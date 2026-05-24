@@ -1,0 +1,12 @@
+[Unit]
+Description=NicheFinder Bol product-feed sync — every 2h at :35
+Documentation=docs/DATA_SOURCES.md (Bol feed pulls at odd :30; 03:30 skipped)
+
+[Timer]
+# Odd hours :35 leaves a 5-minute gap to dodge the documented 03:30 skip.
+OnCalendar=*-*-* 01,05,07,09,11,13,15,17,19,21,23:35:00
+Persistent=true
+Unit=nichefinder-runner@bol-feed-sync.service
+
+[Install]
+WantedBy=timers.target

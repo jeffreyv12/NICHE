@@ -1,0 +1,13 @@
+[Unit]
+Description=NicheFinder Discovery — nightly Sun 02:00 NL
+Documentation=docs/PHASE_PLAN.md Phase 2.2
+
+[Timer]
+# Sunday 02:00 Europe/Amsterdam. Persistent=true means the job runs at next
+# boot if the system was down at the scheduled time.
+OnCalendar=Sun *-*-* 02:00:00
+Persistent=true
+Unit=nichefinder-runner@discovery.service
+
+[Install]
+WantedBy=timers.target
