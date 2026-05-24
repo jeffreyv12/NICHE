@@ -9,5 +9,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "test": "echo 'no tests yet' && exit 0"
+  },
+  "dependencies": {
+    "@nichefinder/agent-sdk": "workspace:*",
+    "@nichefinder/db": "workspace:*",
+    "@nichefinder/shared": "workspace:*"
   }
 }

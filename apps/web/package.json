@@ -8,6 +8,13 @@
     "build": "echo 'build not yet wired — Phase 1.4' && exit 0",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "echo 'no tests yet' && exit 0"
+    "test": "echo 'no tests yet' && exit 0",
+    "db:seed": "echo 'db:seed not yet wired — Phase 1.2.4' && exit 0"
+  },
+  "dependencies": {
+    "@nichefinder/agent-sdk": "workspace:*",
+    "@nichefinder/db": "workspace:*",
+    "@nichefinder/shared": "workspace:*",
+    "@nichefinder/ui": "workspace:*"
   }
 }

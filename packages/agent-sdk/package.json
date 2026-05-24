@@ -12,6 +12,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "echo 'no tests yet' && exit 0"
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.32.1",
+    "@nichefinder/db": "workspace:*",
+    "@nichefinder/shared": "workspace:*",
+    "drizzle-orm": "0.36.4",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "vitest": "2.1.8"
   }
 }

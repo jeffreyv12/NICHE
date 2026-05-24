@@ -13,6 +13,16 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "test": "echo 'no tests yet' && exit 0",
-    "db:migrate": "echo 'db:migrate not yet wired — Phase 1.2' && exit 0"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.36.4",
+    "postgres": "3.4.5"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.30.1"
   }
 }
