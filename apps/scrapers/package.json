@@ -8,14 +8,17 @@
     "build": "tsc -p tsconfig.json --emitDeclarationOnly false || true",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "echo 'no tests yet' && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@nichefinder/agent-sdk": "workspace:*",
     "@nichefinder/db": "workspace:*",
-    "@nichefinder/shared": "workspace:*"
+    "@nichefinder/shared": "workspace:*",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "22.10.2"
+    "@types/node": "22.10.2",
+    "@vitest/coverage-v8": "^2.1.9",
+    "vitest": "^2.1.9"
   }
 }
