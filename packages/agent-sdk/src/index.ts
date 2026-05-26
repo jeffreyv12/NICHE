@@ -26,3 +26,4 @@ export {
 } from "./runAgent";
 export * as echoAgent from "./agents/echo";
 export * as discoveryAgent from "./agents/discovery";
+export * as scoringAgent from "./agents/scoring";
