@@ -8,24 +8,24 @@
 //
 // Requires DATABASE_URL + ADMIN_ALLOWED_EMAILS + PRIMARY_TENANT_HOSTNAME in env.
 
-import { allowedAdmins, getServiceDb, tenants } from '@nichefinder/db';
-import { sql } from 'drizzle-orm';
+import { allowedAdmins, getServiceDb, tenants } from "@nichefinder/db";
+import { sql } from "drizzle-orm";
 
 async function main() {
   const hostname = process.env.PRIMARY_TENANT_HOSTNAME?.trim().toLowerCase();
   if (!hostname) {
-    console.error('PRIMARY_TENANT_HOSTNAME is required.');
+    console.error("PRIMARY_TENANT_HOSTNAME is required.");
     process.exit(1);
   }
 
-  const adminCsv = process.env.ADMIN_ALLOWED_EMAILS ?? '';
+  const adminCsv = process.env.ADMIN_ALLOWED_EMAILS ?? "";
   const adminEmails = adminCsv
-    .split(',')
+    .split(",")
     .map((s) => s.trim().toLowerCase())
-    .filter((s) => s.length > 0 && s.includes('@'));
+    .filter((s) => s.length > 0 && s.includes("@"));
 
   if (adminEmails.length === 0) {
-    console.error('ADMIN_ALLOWED_EMAILS must list at least one email.');
+    console.error("ADMIN_ALLOWED_EMAILS must list at least one email.");
     process.exit(1);
   }
 
@@ -36,18 +36,18 @@ async function main() {
   await db
     .insert(tenants)
     .values({
-      slug: 'main',
-      kind: 'main_authority',
+      slug: "main",
+      kind: "main_authority",
       hostname,
       isActive: true,
       isPromoted: false,
       config: {
-        brand: { name: 'NicheFinder' },
-        locale: { primary: 'nl-NL' },
+        brand: { name: "NicheFinder" },
+        locale: { primary: "nl-NL" },
         affiliate: {
           disclosureText: {
-            nl: 'Deze pagina bevat affiliate links. Als je via een link iets koopt ontvangen wij een commissie, zonder extra kosten voor jou.',
-            en: 'This page contains affiliate links. If you buy something through them we earn a small commission at no extra cost to you.',
+            nl: "Deze pagina bevat affiliate links. Als je via een link iets koopt ontvangen wij een commissie, zonder extra kosten voor jou.",
+            en: "This page contains affiliate links. If you buy something through them we earn a small commission at no extra cost to you.",
           },
         },
       },
@@ -71,7 +71,7 @@ async function main() {
     sql`select count(*)::text as count from allowed_admins`,
   );
   console.log(
-    `Done. tenants=${tenantCount[0]?.count ?? '?'} admins=${adminCount[0]?.count ?? '?'}`,
+    `Done. tenants=${tenantCount[0]?.count ?? "?"} admins=${adminCount[0]?.count ?? "?"}`,
   );
 }
 

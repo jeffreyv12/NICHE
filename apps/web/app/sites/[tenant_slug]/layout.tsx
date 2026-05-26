@@ -1,10 +1,10 @@
 // Per-tenant layout. Reads the tenant config (brand colours, locale) and
 // injects CSS variables + lang attr.
 
-import type { ReactNode } from 'react';
-import { notFound } from 'next/navigation';
-import { getServiceRoleSupabase } from '../../../lib/supabase';
-import { AffiliateDisclosure } from '../../../components/AffiliateDisclosure';
+import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
+import { AffiliateDisclosure } from "../../../components/AffiliateDisclosure";
+import { getServiceRoleSupabase } from "../../../lib/supabase";
 
 interface TenantConfig {
   brand?: {
@@ -31,10 +31,10 @@ interface TenantRow {
 async function loadTenant(slug: string): Promise<TenantRow | null> {
   const supabase = getServiceRoleSupabase();
   const { data, error } = await supabase
-    .from('tenants')
-    .select('id, slug, config')
-    .eq('slug', slug)
-    .eq('is_active', true)
+    .from("tenants")
+    .select("id, slug, config")
+    .eq("slug", slug)
+    .eq("is_active", true)
     .maybeSingle();
 
   if (error || !data) return null;
@@ -53,13 +53,13 @@ export default async function TenantLayout({
   if (!tenant) notFound();
 
   const brand = tenant.config?.brand ?? {};
-  const lang = tenant.config?.locale?.primary ?? 'nl-NL';
+  const lang = tenant.config?.locale?.primary ?? "nl-NL";
 
   const cssVars: Record<string, string> = {};
-  if (brand.primaryColor) cssVars['--brand-primary'] = brand.primaryColor;
-  if (brand.accentColor) cssVars['--brand-accent'] = brand.accentColor;
-  if (brand.backgroundColor) cssVars['--brand-bg'] = brand.backgroundColor;
-  if (brand.textColor) cssVars['--brand-text'] = brand.textColor;
+  if (brand.primaryColor) cssVars["--brand-primary"] = brand.primaryColor;
+  if (brand.accentColor) cssVars["--brand-accent"] = brand.accentColor;
+  if (brand.backgroundColor) cssVars["--brand-bg"] = brand.backgroundColor;
+  if (brand.textColor) cssVars["--brand-text"] = brand.textColor;
 
   return (
     <div lang={lang} style={cssVars}>
@@ -67,21 +67,19 @@ export default async function TenantLayout({
         textNl={tenant.config?.affiliate?.disclosureText?.nl}
         textEn={tenant.config?.affiliate?.disclosureText?.en}
       />
-      <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem 1rem' }}>
-        {children}
-      </main>
+      <main style={{ maxWidth: 960, margin: "0 auto", padding: "1.5rem 1rem" }}>{children}</main>
       <footer
         style={{
           maxWidth: 960,
-          margin: '3rem auto 1rem',
-          padding: '1rem',
-          fontSize: '0.875rem',
-          color: 'var(--brand-secondary)',
+          margin: "3rem auto 1rem",
+          padding: "1rem",
+          fontSize: "0.875rem",
+          color: "var(--brand-secondary)",
         }}
       >
         <p>
-          <a href="/ai-disclosure">AI-disclosure</a> ·{' '}
-          <a href="/privacy">Privacy</a> · <a href="/colofon">Colofon</a>
+          <a href="/ai-disclosure">AI-disclosure</a> · <a href="/privacy">Privacy</a> ·{" "}
+          <a href="/colofon">Colofon</a>
         </p>
       </footer>
     </div>

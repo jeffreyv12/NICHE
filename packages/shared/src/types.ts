@@ -1,21 +1,21 @@
 // Cross-package primitive types. Behavioural types live next to their owning module.
 
 /** A non-empty string. Use the constructor for runtime checks. */
-export type NonEmptyString = string & { __brand: 'NonEmptyString' };
+export type NonEmptyString = string & { __brand: "NonEmptyString" };
 
 export const asNonEmpty = (s: string): NonEmptyString => {
-  if (s.length === 0) throw new Error('expected non-empty string');
+  if (s.length === 0) throw new Error("expected non-empty string");
   return s as NonEmptyString;
 };
 
 /** ISO-8601 date string (no time). */
-export type IsoDate = string & { __brand: 'IsoDate' };
+export type IsoDate = string & { __brand: "IsoDate" };
 
 /** ISO-8601 timestamp. */
-export type IsoTimestamp = string & { __brand: 'IsoTimestamp' };
+export type IsoTimestamp = string & { __brand: "IsoTimestamp" };
 
 /** Slug — lowercase letters, digits, hyphens. */
-export type Slug = string & { __brand: 'Slug' };
+export type Slug = string & { __brand: "Slug" };
 
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -30,8 +30,11 @@ export const toSlug = (s: string): Slug =>
   asSlug(
     s
       .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, ''),
+      .normalize("NFKD")
+      // Strip combining diacritical marks after NFKD decomposition. \p{M} is the
+      // Unicode Mark category — broader than the U+0300–U+036F block and avoids
+      // the misleading-character-class lint when written as a literal range.
+      .replace(/\p{M}/gu, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, ""),
   );

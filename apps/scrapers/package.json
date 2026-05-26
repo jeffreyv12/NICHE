@@ -14,5 +14,8 @@
     "@nichefinder/agent-sdk": "workspace:*",
     "@nichefinder/db": "workspace:*",
     "@nichefinder/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2"
   }
 }

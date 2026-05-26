@@ -7,22 +7,22 @@
 // Tenant lookup is cached in KV with 60s TTL (see lib/tenants.ts), so the
 // per-request cost is negligible after the first hit per cache window.
 
-import { NextResponse, type NextRequest } from 'next/server';
-import { getSubfolderTenantForPath, getTenantByHostname } from './lib/tenants';
+import { type NextRequest, NextResponse } from "next/server";
+import { getSubfolderTenantForPath, getTenantByHostname } from "./lib/tenants";
 
 // Paths the middleware never touches: Next internals, static, admin (handled
 // by its own auth gate), webhooks (must be reachable without tenant context),
 // and the affiliate redirect + api routes.
 const PASSTHROUGH_PREFIXES = [
-  '/_next',
-  '/admin',
-  '/auth',
-  '/api',
-  '/r/',
-  '/webhooks',
-  '/favicon.ico',
-  '/robots.txt',
-  '/sitemap.xml',
+  "/_next",
+  "/admin",
+  "/auth",
+  "/api",
+  "/r/",
+  "/webhooks",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
 ];
 
 export async function middleware(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const hostname = request.headers.get('host') ?? '';
+  const hostname = request.headers.get("host") ?? "";
   const tenant = await getTenantByHostname(hostname);
 
   if (!tenant) {
@@ -43,18 +43,18 @@ export async function middleware(request: NextRequest) {
   }
 
   // CASE A: a promoted-niche dedicated domain → rewrite straight through
-  if (tenant.kind === 'promoted_niche') {
+  if (tenant.kind === "promoted_niche") {
     const url = request.nextUrl.clone();
     url.pathname = `/sites/${tenant.slug}${pathname}`;
     return NextResponse.rewrite(url);
   }
 
   // CASE B: main authority — check first path segment for a subfolder tenant
-  if (tenant.kind === 'main_authority') {
+  if (tenant.kind === "main_authority") {
     const sub = await getSubfolderTenantForPath(pathname);
     if (sub) {
       const url = request.nextUrl.clone();
-      const trimmed = pathname.slice(sub.path_prefix?.length ?? 0) || '/';
+      const trimmed = pathname.slice(sub.path_prefix?.length ?? 0) || "/";
       url.pathname = `/sites/${sub.slug}${trimmed}`;
       return NextResponse.rewrite(url);
     }
@@ -72,5 +72,5 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Run on everything except Next internals + static files
-  matcher: ['/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js)$).*)'],
+  matcher: ["/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js)$).*)"],
 };

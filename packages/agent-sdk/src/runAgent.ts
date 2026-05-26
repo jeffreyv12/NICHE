@@ -10,20 +10,16 @@
 //   7. Persist output + close run record
 //   8. On failure → status='failed' + error logged
 
-import type Anthropic from '@anthropic-ai/sdk';
-import { eq } from 'drizzle-orm';
-import { createHash } from 'node:crypto';
-import type { ZodTypeAny, z } from 'zod';
-import { agentRuns, type AgentName, type ClaudeModel, type ServiceDb } from '@nichefinder/db';
-import type { ClaudeModelString } from '@nichefinder/shared';
-import { getAnthropicClient } from './client';
-import { computeCostEur, type TokenUsage } from './cost';
-import {
-  assertBudgetAvailable,
-  assertPerCallCap,
-  PerCallCapExceededError,
-} from './guards/budget';
-import { assertAgentModel, type AgentSlug } from './guards/tier-routing';
+import { createHash } from "node:crypto";
+import type Anthropic from "@anthropic-ai/sdk";
+import { type AgentName, type ClaudeModel, type ServiceDb, agentRuns } from "@nichefinder/db";
+import type { ClaudeModelString } from "@nichefinder/shared";
+import { eq } from "drizzle-orm";
+import type { ZodTypeAny, z } from "zod";
+import { getAnthropicClient } from "./client";
+import { type TokenUsage, computeCostEur } from "./cost";
+import { PerCallCapExceededError, assertBudgetAvailable, assertPerCallCap } from "./guards/budget";
+import { type AgentSlug, assertAgentModel } from "./guards/tier-routing";
 
 export interface RunAgentConfig<TInput, TOutput> {
   /** Agent name; matches the agent_name enum and is used for tier-routing checks. */
@@ -79,7 +75,7 @@ export class AgentOutputSchemaError extends Error {
     public rawText: string,
   ) {
     super(`Agent ${agent} returned output that failed schema validation`);
-    this.name = 'AgentOutputSchemaError';
+    this.name = "AgentOutputSchemaError";
   }
 }
 
@@ -112,25 +108,24 @@ export async function runAgent<TInput, TOutput>(
       parentRunId: config.parentRunId,
       nicheId: config.nicheId,
       pageId: config.pageId,
-      status: 'running',
+      status: "running",
       inputHash,
     })
     .returning({ id: agentRuns.id });
 
-  if (!run) throw new Error('failed to insert agent_runs row');
+  if (!run) throw new Error("failed to insert agent_runs row");
   const runId = run.id;
 
   // 5. Build messages
   const promptCache = runtime.promptCache ?? true;
-  const system: Anthropic.MessageParam['content'] = promptCache
-    ? [
-        {
-          type: 'text',
-          text: config.systemPrompt,
-          cache_control: { type: 'ephemeral' },
-        } as Anthropic.TextBlockParam,
-      ]
-    : [{ type: 'text', text: config.systemPrompt }];
+  // `system` must be string | TextBlockParam[] in the SDK 0.32+ types.
+  const system: Anthropic.TextBlockParam[] = [
+    {
+      type: "text",
+      text: config.systemPrompt,
+      ...(promptCache ? { cache_control: { type: "ephemeral" as const } } : {}),
+    },
+  ];
 
   const client = runtime.client ?? getAnthropicClient();
 
@@ -141,7 +136,7 @@ export async function runAgent<TInput, TOutput>(
       model: config.model,
       max_tokens: config.maxTokens ?? 4096,
       system,
-      messages: [{ role: 'user', content: config.buildUserMessage(parsedInput) }],
+      messages: [{ role: "user", content: config.buildUserMessage(parsedInput) }],
       tools: config.tools,
     });
   } catch (err) {
@@ -149,12 +144,21 @@ export async function runAgent<TInput, TOutput>(
     throw err;
   }
 
-  // 7. Compute cost + apply per-call cap
+  // 7. Compute cost + apply per-call cap.
+  // cache_read_input_tokens / cache_creation_input_tokens are present on the
+  // wire when prompt caching is active but aren't in every SDK version's
+  // Usage type. Read them defensively.
+  const rawUsage = response.usage as unknown as {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
   const usage: TokenUsage = {
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
-    cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
+    inputTokens: rawUsage.input_tokens,
+    outputTokens: rawUsage.output_tokens,
+    cacheReadTokens: rawUsage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: rawUsage.cache_creation_input_tokens ?? 0,
   };
   const costEur = computeCostEur(config.model, usage);
 
@@ -184,11 +188,7 @@ export async function runAgent<TInput, TOutput>(
 
   const validated = config.outputSchema.safeParse(outputJson);
   if (!validated.success) {
-    const err = new AgentOutputSchemaError(
-      config.agent,
-      validated.error.issues,
-      rawText,
-    );
+    const err = new AgentOutputSchemaError(config.agent, validated.error.issues, rawText);
     await markFailed(runtime.db, runId, err, { usage, costEur, rawText });
     throw err;
   }
@@ -201,7 +201,7 @@ export async function runAgent<TInput, TOutput>(
     .update(agentRuns)
     .set({
       finishedAt: new Date(),
-      status: 'success',
+      status: "success",
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
       cacheReadTokens: usage.cacheReadTokens,
@@ -221,13 +221,13 @@ export async function runAgent<TInput, TOutput>(
 function extractTextOutput(response: Anthropic.Message): string {
   const parts: string[] = [];
   for (const block of response.content) {
-    if (block.type === 'text') parts.push(block.text);
+    if (block.type === "text") parts.push(block.text);
   }
-  return parts.join('').trim();
+  return parts.join("").trim();
 }
 
 function hashString(s: string): string {
-  return createHash('sha256').update(s).digest('hex').slice(0, 16);
+  return createHash("sha256").update(s).digest("hex").slice(0, 16);
 }
 
 async function markFailed(
@@ -241,8 +241,8 @@ async function markFailed(
     .update(agentRuns)
     .set({
       finishedAt: new Date(),
-      status: 'failed',
-      error: message + (extras?.rawText ? `\n---\nRAW: ${extras.rawText.slice(0, 2000)}` : ''),
+      status: "failed",
+      error: message + (extras?.rawText ? `\n---\nRAW: ${extras.rawText.slice(0, 2000)}` : ""),
       inputTokens: extras?.usage?.inputTokens,
       outputTokens: extras?.usage?.outputTokens,
       cacheReadTokens: extras?.usage?.cacheReadTokens,

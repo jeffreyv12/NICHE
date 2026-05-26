@@ -4,7 +4,7 @@
 // Source of truth for what's expected: .env.example at repo root.
 // If you add a variable, add it to BOTH .env.example AND this schema in the same PR.
 
-import { z } from 'zod';
+import { z } from "zod";
 
 // ---------------------------------------------------------------------------
 // Sub-schemas
@@ -15,8 +15,8 @@ const optionalUrl = url.optional();
 const optionalNonEmpty = z.string().min(1).optional();
 
 const booleanFromEnv = z
-  .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
-  .transform((v) => v === 'true' || v === '1');
+  .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
+  .transform((v) => v === "true" || v === "1");
 
 const positiveFloat = z.coerce.number().positive();
 const positiveInt = z.coerce.number().int().positive();
@@ -27,8 +27,8 @@ const positiveInt = z.coerce.number().int().positive();
 
 export const envSchema = z.object({
   // Core
-  NODE_ENV: z.enum(['development', 'preview', 'production', 'test']).default('development'),
-  APP_ENV: z.enum(['local', 'preview', 'staging', 'production', 'test']).default('local'),
+  NODE_ENV: z.enum(["development", "preview", "production", "test"]).default("development"),
+  APP_ENV: z.enum(["local", "preview", "staging", "production", "test"]).default("local"),
   PRIMARY_TENANT_HOSTNAME: z.string().min(3),
   NEXT_PUBLIC_APP_URL: url,
   CLAUDE_MONTHLY_BUDGET_EUR: positiveFloat.default(200),
@@ -43,21 +43,21 @@ export const envSchema = z.object({
 
   // Anthropic
   ANTHROPIC_API_KEY: z.string().min(10),
-  ANTHROPIC_BETA_HEADERS: z.string().default('managed-agents-2026-04-01'),
-  CLAUDE_MODEL_HAIKU: z.string().default('claude-haiku-4-5-20251001'),
-  CLAUDE_MODEL_SONNET: z.string().default('claude-sonnet-4-6'),
-  CLAUDE_MODEL_OPUS: z.string().default('claude-opus-4-7'),
+  ANTHROPIC_BETA_HEADERS: z.string().default("managed-agents-2026-04-01"),
+  CLAUDE_MODEL_HAIKU: z.string().default("claude-haiku-4-5-20251001"),
+  CLAUDE_MODEL_SONNET: z.string().default("claude-sonnet-4-6"),
+  CLAUDE_MODEL_OPUS: z.string().default("claude-opus-4-7"),
 
   // DataForSEO
   DATAFORSEO_LOGIN: optionalNonEmpty,
   DATAFORSEO_PASSWORD: optionalNonEmpty,
-  DATAFORSEO_QUEUE: z.enum(['standard', 'live']).default('standard'),
+  DATAFORSEO_QUEUE: z.enum(["standard", "live"]).default("standard"),
 
   // Bol Partner
   BOL_PARTNER_CLIENT_ID: optionalNonEmpty,
   BOL_PARTNER_CLIENT_SECRET: optionalNonEmpty,
-  BOL_SUBID_PREFIX: z.string().max(16).default('nf'),
-  BOL_SITE_CODE: z.string().max(32).default('nichefinder'),
+  BOL_SUBID_PREFIX: z.string().max(16).default("nf"),
+  BOL_SITE_CODE: z.string().max(32).default("nichefinder"),
 
   // Awin
   AWIN_API_TOKEN: optionalNonEmpty,
@@ -95,11 +95,11 @@ export const envSchema = z.object({
 
   // Email
   RESEND_API_KEY: optionalNonEmpty,
-  EMAIL_FROM: z.string().default('NicheFinder <noreply@example.com>'),
+  EMAIL_FROM: z.string().default("NicheFinder <noreply@example.com>"),
 
   // Analytics
   NEXT_PUBLIC_POSTHOG_KEY: optionalNonEmpty,
-  NEXT_PUBLIC_POSTHOG_HOST: url.default('https://eu.i.posthog.com'),
+  NEXT_PUBLIC_POSTHOG_HOST: url.default("https://eu.i.posthog.com"),
 
   // Error tracking
   SENTRY_DSN: optionalUrl,
@@ -115,9 +115,7 @@ export const envSchema = z.object({
   DISCORD_WEBHOOK_URL: optionalUrl,
 
   // Scraper infra
-  SCRAPER_USER_AGENT: z
-    .string()
-    .default('NicheFinder/1.0 (+https://example.com/about-bot)'),
+  SCRAPER_USER_AGENT: z.string().default("NicheFinder/1.0 (+https://example.com/about-bot)"),
   SCRAPER_RATE_LIMIT_PER_HOST_RPS: positiveInt.default(1),
   SCRAPER_PROXY_URL: optionalUrl,
 
@@ -125,24 +123,24 @@ export const envSchema = z.object({
   CLOUDFLARE_R2_ACCOUNT_ID: optionalNonEmpty,
   CLOUDFLARE_R2_ACCESS_KEY: optionalNonEmpty,
   CLOUDFLARE_R2_SECRET_KEY: optionalNonEmpty,
-  CLOUDFLARE_R2_BUCKET_MEDIA: z.string().default('nichefinder-media'),
-  CLOUDFLARE_R2_BUCKET_TRACES: z.string().default('nichefinder-agent-traces'),
+  CLOUDFLARE_R2_BUCKET_MEDIA: z.string().default("nichefinder-media"),
+  CLOUDFLARE_R2_BUCKET_TRACES: z.string().default("nichefinder-agent-traces"),
 
   // Feature flags
-  FEATURE_AUTO_DOMAIN_REGISTRATION: booleanFromEnv.default('false'),
-  FEATURE_BATCH_API: booleanFromEnv.default('true'),
-  FEATURE_PROMPT_CACHE: booleanFromEnv.default('true'),
-  FEATURE_FAKE_TIMERS: booleanFromEnv.default('false'),
+  FEATURE_AUTO_DOMAIN_REGISTRATION: booleanFromEnv.default("false"),
+  FEATURE_BATCH_API: booleanFromEnv.default("true"),
+  FEATURE_PROMPT_CACHE: booleanFromEnv.default("true"),
+  FEATURE_FAKE_TIMERS: booleanFromEnv.default("false"),
 
   // Admin
   ADMIN_ALLOWED_EMAILS: z
     .string()
-    .default('')
+    .default("")
     .transform((s) =>
       s
-        .split(',')
+        .split(",")
         .map((e) => e.trim().toLowerCase())
-        .filter((e) => e.length > 0 && e.includes('@')),
+        .filter((e) => e.length > 0 && e.includes("@")),
     ),
 });
 
@@ -166,12 +164,10 @@ export function parseEnv(): Env {
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
     const issues = result.error.issues
-      .map((i) => `  - ${i.path.join('.') || '<root>'}: ${i.message}`)
-      .join('\n');
-    // biome-ignore lint/suspicious/noConsole: deliberate startup-error output
+      .map((i) => `  - ${i.path.join(".") || "<root>"}: ${i.message}`)
+      .join("\n");
     console.error(
-      `\nEnv validation failed (${result.error.issues.length} issue(s)):\n${issues}\n\n` +
-        'Check .env.local against .env.example.\n',
+      `\nEnv validation failed (${result.error.issues.length} issue(s)):\n${issues}\n\nCheck .env.local against .env.example.\n`,
     );
     process.exit(1);
   }

@@ -5,18 +5,18 @@
 // The allowed_admins table mirrors that env for RLS-driven SELECT policies; we
 // check the env here for the app-layer gate (defense in depth).
 
-import { redirect } from 'next/navigation';
-import { getServerSupabase } from './supabase';
+import { redirect } from "next/navigation";
+import { getServerSupabase } from "./supabase";
 
 let allowedCache: Set<string> | undefined;
 
 function getAllowedEmails(): Set<string> {
   if (allowedCache) return allowedCache;
-  const raw = process.env.ADMIN_ALLOWED_EMAILS ?? '';
+  const raw = process.env.ADMIN_ALLOWED_EMAILS ?? "";
   const list = raw
-    .split(',')
+    .split(",")
     .map((s) => s.trim().toLowerCase())
-    .filter((s) => s.length > 0 && s.includes('@'));
+    .filter((s) => s.length > 0 && s.includes("@"));
   allowedCache = new Set(list);
   return allowedCache;
 }
@@ -35,7 +35,7 @@ export async function requireAdmin(): Promise<AdminUser> {
   const { data, error } = await supabase.auth.getUser();
 
   if (error || !data.user || !data.user.email) {
-    redirect('/admin/login');
+    redirect("/admin/login");
   }
 
   const email = data.user.email.toLowerCase();
@@ -43,14 +43,14 @@ export async function requireAdmin(): Promise<AdminUser> {
 
   if (allowed.size === 0) {
     throw new Error(
-      'ADMIN_ALLOWED_EMAILS is empty. Admin would be wide-open; refusing to authenticate.',
+      "ADMIN_ALLOWED_EMAILS is empty. Admin would be wide-open; refusing to authenticate.",
     );
   }
 
   if (!allowed.has(email)) {
     // Log out + redirect. Treat unknown emails as hostile.
     await supabase.auth.signOut();
-    redirect('/admin/login?error=not_allowed');
+    redirect("/admin/login?error=not_allowed");
   }
 
   return { id: data.user.id, email };

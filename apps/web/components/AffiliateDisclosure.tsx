@@ -4,9 +4,9 @@
 // Per-tenant override: `tenants.config.affiliate.disclosureText.{nl,en}`.
 
 const DEFAULT_NL =
-  'Deze pagina bevat affiliate links. Als je via een link iets koopt ontvangen wij een commissie, zonder extra kosten voor jou.';
+  "Deze pagina bevat affiliate links. Als je via een link iets koopt ontvangen wij een commissie, zonder extra kosten voor jou.";
 const DEFAULT_EN =
-  'This page contains affiliate links. If you buy something through them we earn a small commission at no extra cost to you.';
+  "This page contains affiliate links. If you buy something through them we earn a small commission at no extra cost to you.";
 
 export function AffiliateDisclosure({
   textNl,
@@ -20,7 +20,7 @@ export function AffiliateDisclosure({
       className="disclosure"
       style={{
         maxWidth: 960,
-        margin: '1rem auto 0',
+        margin: "1rem auto 0",
       }}
       role="note"
       aria-label="affiliate disclosure"
@@ -28,7 +28,7 @@ export function AffiliateDisclosure({
       <p style={{ margin: 0 }} lang="nl">
         {textNl ?? DEFAULT_NL}
       </p>
-      <p style={{ margin: '0.25rem 0 0' }} lang="en">
+      <p style={{ margin: "0.25rem 0 0" }} lang="en">
         <small>{textEn ?? DEFAULT_EN}</small>
       </p>
     </div>

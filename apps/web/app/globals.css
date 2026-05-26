@@ -8,19 +8,26 @@
   --brand-accent: #2563eb;
   --brand-bg: #ffffff;
   --brand-text: #171717;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
 }
 
-html, body {
+html,
+body {
   background: var(--brand-bg);
   color: var(--brand-text);
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
 }
 
-a { color: var(--brand-accent); text-decoration: underline; text-underline-offset: 2px; }
-a:hover { text-decoration: none; }
+a {
+  color: var(--brand-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+a:hover {
+  text-decoration: none;
+}
 
 /* Affiliate + AI disclosure: never display:none; never below the fold without scroll affordance. */
 .disclosure {

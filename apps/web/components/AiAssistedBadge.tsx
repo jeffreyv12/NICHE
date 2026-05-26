@@ -9,19 +9,17 @@ interface Props {
 }
 
 export function AiAssistedBadge({ authorName, badgeText }: Props) {
-  const text = badgeText ?? 'AI-assisted — geredigeerd door redactie';
+  const text = badgeText ?? "AI-assisted — geredigeerd door redactie";
 
   const jsonld = {
-    '@context': 'https://schema.org',
-    '@type': 'CreativeWork',
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
     aiContentDeclaration: {
       isPartiallyGenerated: true,
-      generator: 'Anthropic Claude',
+      generator: "Anthropic Claude",
       humanInTheLoop: true,
     },
-    author: authorName
-      ? { '@type': 'Person', name: authorName }
-      : undefined,
+    author: authorName ? { "@type": "Person", name: authorName } : undefined,
   };
 
   return (
@@ -29,10 +27,10 @@ export function AiAssistedBadge({ authorName, badgeText }: Props) {
       <span
         className="disclosure disclosure--ai"
         style={{
-          display: 'inline-block',
-          fontSize: '0.75rem',
-          padding: '0.25rem 0.5rem',
-          marginTop: '0.5rem',
+          display: "inline-block",
+          fontSize: "0.75rem",
+          padding: "0.25rem 0.5rem",
+          marginTop: "0.5rem",
         }}
         role="note"
       >

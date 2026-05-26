@@ -5,16 +5,16 @@
 //  - server:  server-side anon, RLS-respecting, cookies via next/headers
 //  - service: server-side service-role, BYPASSES RLS — admin actions only
 
-import { type CookieOptions, createBrowserClient, createServerClient } from '@supabase/ssr';
-import { createClient as createPlainClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { type CookieOptions, createBrowserClient, createServerClient } from "@supabase/ssr";
+import { createClient as createPlainClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 
 function readEnv() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) {
     throw new Error(
-      'Supabase env missing: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY required.',
+      "Supabase env missing: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY required.",
     );
   }
   return { url, anon };
@@ -53,7 +53,7 @@ export function getServiceRoleSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY required for service-role client.');
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY required for service-role client.");
   }
   return createPlainClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },

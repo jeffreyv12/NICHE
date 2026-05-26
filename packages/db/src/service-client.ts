@@ -8,9 +8,9 @@
 // NEVER import this from a client component. NEVER expose service-role
 // connection strings to the browser.
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import * as schema from './schema';
+import { type PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema";
 
 let cached: PostgresJsDatabase<typeof schema> | undefined;
 
@@ -26,7 +26,7 @@ export function getServiceDb(): PostgresJsDatabase<typeof schema> {
 
   const url = process.env.DATABASE_URL;
   if (!url) {
-    throw new Error('DATABASE_URL must be set for service-role client. See .env.example.');
+    throw new Error("DATABASE_URL must be set for service-role client. See .env.example.");
   }
 
   const client = postgres(url, {

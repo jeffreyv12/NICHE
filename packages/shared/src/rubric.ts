@@ -4,23 +4,23 @@
 // Bump RUBRIC_VERSION on any weight or criterion change. Old scores remain
 // stored against their old version in niche_scores.rubric_version.
 
-export const RUBRIC_VERSION = '1.0.0' as const;
+export const RUBRIC_VERSION = "1.0.0" as const;
 
 // ---------------------------------------------------------------------------
 // Criteria + weights
 // ---------------------------------------------------------------------------
 
 export const CRITERION_KEYS = [
-  'affiliate_availability',
-  'commercial_intent',
-  'kgr_supply_gap',
-  'ai_saturation_inverse',
-  'trend_slope',
-  'ymyl_safety',
-  'avoid_list_inverse',
-  'unit_economics',
-  'competition_diversity',
-  'operator_interest',
+  "affiliate_availability",
+  "commercial_intent",
+  "kgr_supply_gap",
+  "ai_saturation_inverse",
+  "trend_slope",
+  "ymyl_safety",
+  "avoid_list_inverse",
+  "unit_economics",
+  "competition_diversity",
+  "operator_interest",
 ] as const;
 
 export type CriterionKey = (typeof CRITERION_KEYS)[number];
@@ -62,11 +62,11 @@ export const SCORE_BANDS = {
 // ---------------------------------------------------------------------------
 
 export const HARD_BLOCK_REASONS = [
-  'kill_list',
-  'ymyl',
-  'trademark',
-  'duplicate_killed',
-  'duplicate_active',
+  "kill_list",
+  "ymyl",
+  "trademark",
+  "duplicate_killed",
+  "duplicate_active",
 ] as const;
 export type HardBlockReason = (typeof HARD_BLOCK_REASONS)[number];
 

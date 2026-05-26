@@ -1,7 +1,7 @@
 // Anthropic SDK client factory.
 // One instance per process, lazy-init, beta headers applied uniformly.
 
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from "@anthropic-ai/sdk";
 
 let cached: Anthropic | undefined;
 
@@ -17,17 +17,14 @@ export function getAnthropicClient(options: GetClientOptions = {}): Anthropic {
 
   const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is required. See .env.example.');
+    throw new Error("ANTHROPIC_API_KEY is required. See .env.example.");
   }
 
-  const betaHeaders =
-    options.betaHeaders ?? process.env.ANTHROPIC_BETA_HEADERS ?? '';
+  const betaHeaders = options.betaHeaders ?? process.env.ANTHROPIC_BETA_HEADERS ?? "";
 
   const client = new Anthropic({
     apiKey,
-    defaultHeaders: betaHeaders
-      ? { 'anthropic-beta': betaHeaders }
-      : undefined,
+    defaultHeaders: betaHeaders ? { "anthropic-beta": betaHeaders } : undefined,
   });
 
   if (!options.apiKey) cached = client;

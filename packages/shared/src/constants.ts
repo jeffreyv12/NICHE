@@ -6,9 +6,9 @@
  * need an audit pass.
  */
 export const CLAUDE_MODEL_STRINGS = {
-  haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-6',
-  opus: 'claude-opus-4-7',
+  haiku: "claude-haiku-4-5-20251001",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-7",
 } as const;
 
 export type ClaudeModelKey = keyof typeof CLAUDE_MODEL_STRINGS;
@@ -22,9 +22,9 @@ export type ClaudeModelString = (typeof CLAUDE_MODEL_STRINGS)[ClaudeModelKey];
  * Cache writes are billed at 1.25× the input rate; cache reads at 0.1× the input rate.
  */
 export const CLAUDE_PRICES_USD_PER_MTOK = {
-  'claude-haiku-4-5-20251001': { input: 1, output: 5 },
-  'claude-sonnet-4-6': { input: 3, output: 15 },
-  'claude-opus-4-7': { input: 15, output: 75 },
+  "claude-haiku-4-5-20251001": { input: 1, output: 5 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-opus-4-7": { input: 15, output: 75 },
 } as const;
 
 /** Standing rate used when computing EUR cost from USD price. */
@@ -47,8 +47,7 @@ export const DEFAULT_SCRAPER_RPS = 1;
 /**
  * Public user-agent the scrapers identify as. Real value from env.
  */
-export const SCRAPER_UA_DEFAULT =
-  'NicheFinder/1.0 (+https://example.com/about-bot)';
+export const SCRAPER_UA_DEFAULT = "NicheFinder/1.0 (+https://example.com/about-bot)";
 
 /**
  * Per-source overrides on rate limits and conventions. Hard-coded for sources

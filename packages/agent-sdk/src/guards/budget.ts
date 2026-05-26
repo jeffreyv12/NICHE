@@ -6,8 +6,8 @@
 // Implementation: the agent plane writes `agent_runs.cost_eur` after every
 // call; the guard reads the MTD sum and refuses new calls if budget is breached.
 
-import { sql } from 'drizzle-orm';
-import { agentRuns, type ServiceDb } from '@nichefinder/db';
+import { type ServiceDb, agentRuns } from "@nichefinder/db";
+import { sql } from "drizzle-orm";
 
 export class BudgetExceededError extends Error {
   constructor(
@@ -15,10 +15,9 @@ export class BudgetExceededError extends Error {
     public budgetEur: number,
   ) {
     super(
-      `Monthly Claude budget exceeded: spent €${spentEur.toFixed(2)} of €${budgetEur.toFixed(2)}. ` +
-        'Agents are paused until next month or until CLAUDE_MONTHLY_BUDGET_EUR is raised.',
+      `Monthly Claude budget exceeded: spent €${spentEur.toFixed(2)} of €${budgetEur.toFixed(2)}. Agents are paused until next month or until CLAUDE_MONTHLY_BUDGET_EUR is raised.`,
     );
-    this.name = 'BudgetExceededError';
+    this.name = "BudgetExceededError";
   }
 }
 
@@ -31,7 +30,7 @@ export class PerCallCapExceededError extends Error {
       `Per-call cap exceeded: this call would cost €${costEur.toFixed(4)} ` +
         `(cap €${capEur.toFixed(2)}). Aborting and pausing this agent for 1h.`,
     );
-    this.name = 'PerCallCapExceededError';
+    this.name = "PerCallCapExceededError";
   }
 }
 

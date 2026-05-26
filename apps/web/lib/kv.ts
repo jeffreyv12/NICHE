@@ -3,7 +3,7 @@
 //
 // Used by lib/tenants.ts to cache hostname→tenant lookups for 60s.
 
-import { kv as vercelKv } from '@vercel/kv';
+import { kv as vercelKv } from "@vercel/kv";
 
 interface MemoryEntry {
   value: unknown;
@@ -30,11 +30,7 @@ export async function kvGet<T>(key: string): Promise<T | null> {
   return entry.value as T;
 }
 
-export async function kvSet<T>(
-  key: string,
-  value: T,
-  ttlSeconds: number,
-): Promise<void> {
+export async function kvSet<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
   if (hasVercelKv()) {
     await vercelKv.set(key, value, { ex: ttlSeconds });
     return;

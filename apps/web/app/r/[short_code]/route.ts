@@ -7,9 +7,9 @@
 // Per ARCHITECTURE.md data flow: clicks are the top-of-funnel signal that
 // feeds the Validation Agent's GO/PIVOT/KILL decision.
 
-import { createHash } from 'node:crypto';
-import { NextResponse, type NextRequest } from 'next/server';
-import { getServiceRoleSupabase } from '../../../lib/supabase';
+import { createHash } from "node:crypto";
+import { type NextRequest, NextResponse } from "next/server";
+import { getServiceRoleSupabase } from "../../../lib/supabase";
 
 interface AffiliateLinkRow {
   id: string;
@@ -22,7 +22,7 @@ function hashIp(ip: string | null): string | null {
   if (!ip) return null;
   // Daily-rotating salt so the hash isn't a permanent identifier.
   const day = new Date().toISOString().slice(0, 10);
-  return createHash('sha256').update(`${ip}|${day}|nichefinder`).digest('hex').slice(0, 32);
+  return createHash("sha256").update(`${ip}|${day}|nichefinder`).digest("hex").slice(0, 32);
 }
 
 function simpleBotScore(userAgent: string | null): number {
@@ -41,39 +41,39 @@ interface RouteContext {
 export async function GET(request: NextRequest, context: RouteContext) {
   const { short_code } = await context.params;
   if (!short_code) {
-    return NextResponse.json({ error: 'missing short_code' }, { status: 400 });
+    return NextResponse.json({ error: "missing short_code" }, { status: 400 });
   }
 
   const supabase = getServiceRoleSupabase();
 
   // 1. Lookup
   const { data: link, error: linkError } = (await supabase
-    .from('affiliate_links')
-    .select('id, tenant_id, tracking_url, retired_at')
-    .eq('short_code', short_code)
+    .from("affiliate_links")
+    .select("id, tenant_id, tracking_url, retired_at")
+    .eq("short_code", short_code)
     .maybeSingle()) as { data: AffiliateLinkRow | null; error: unknown };
 
   if (linkError || !link) {
-    return NextResponse.json({ error: 'unknown short_code' }, { status: 404 });
+    return NextResponse.json({ error: "unknown short_code" }, { status: 404 });
   }
   if (link.retired_at) {
     // Retired: take the user back to the tenant homepage rather than a dead URL.
-    return NextResponse.redirect(new URL('/', request.url), 302);
+    return NextResponse.redirect(new URL("/", request.url), 302);
   }
 
   // 2. Click logging — non-blocking on failure (a click should redirect even if logging fails)
   const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    request.headers.get("x-real-ip") ??
     null;
-  const userAgent = request.headers.get('user-agent');
-  const referrer = request.headers.get('referer');
+  const userAgent = request.headers.get("user-agent");
+  const referrer = request.headers.get("referer");
   const url = new URL(request.url);
-  const cohort = url.searchParams.get('c') ?? 'organic';
+  const cohort = url.searchParams.get("c") ?? "organic";
   const botScore = simpleBotScore(userAgent);
 
   try {
-    await supabase.from('clicks').insert({
+    await supabase.from("clicks").insert({
       tenant_id: link.tenant_id,
       affiliate_link_id: link.id,
       ip_hash: hashIp(ip),
@@ -82,10 +82,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       is_bot: botScore >= 70,
       bot_score: botScore,
       cohort,
-      outcome: 'pending',
+      outcome: "pending",
     });
   } catch (err) {
-    console.error('[clicks] insert failed', err);
+    console.error("[clicks] insert failed", err);
   }
 
   // 3. Redirect

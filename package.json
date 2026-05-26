@@ -27,11 +27,7 @@
     "typescript": "5.7.2"
   },
   "lint-staged": {
-    "*": [
-      "node ./scripts/check-no-env.mjs"
-    ],
-    "*.{ts,tsx,js,jsx,json,md}": [
-      "biome check --write --no-errors-on-unmatched"
-    ]
+    "*": ["node ./scripts/check-no-env.mjs"],
+    "*.{ts,tsx,js,jsx,json,md}": ["biome check --write --no-errors-on-unmatched"]
   }
 }

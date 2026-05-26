@@ -6,7 +6,7 @@
 // "Compile-time enforced via a wrapper that takes only allowed model strings
 // per agent type" — we declare allowed sets and assertAgentModel() throws.
 
-import { CLAUDE_MODEL_STRINGS, type ClaudeModelString } from '@nichefinder/shared';
+import { CLAUDE_MODEL_STRINGS, type ClaudeModelString } from "@nichefinder/shared";
 
 const { haiku, sonnet, opus } = CLAUDE_MODEL_STRINGS;
 
@@ -33,13 +33,16 @@ export class TierRoutingError extends Error {
   ) {
     super(
       `Tier-routing violation: agent="${agent}" tried to call model="${model}". ` +
-        `Allowed: ${allowed.join(', ')}. See CLAUDE.md non-negotiable #7.`,
+        `Allowed: ${allowed.join(", ")}. See CLAUDE.md non-negotiable #7.`,
     );
-    this.name = 'TierRoutingError';
+    this.name = "TierRoutingError";
   }
 }
 
-export function assertAgentModel(agent: AgentSlug, model: string): asserts model is ClaudeModelString {
+export function assertAgentModel(
+  agent: AgentSlug,
+  model: string,
+): asserts model is ClaudeModelString {
   const allowed = ALLOWED_MODELS_PER_AGENT[agent];
   if (!(allowed as readonly string[]).includes(model)) {
     throw new TierRoutingError(agent, model, allowed);

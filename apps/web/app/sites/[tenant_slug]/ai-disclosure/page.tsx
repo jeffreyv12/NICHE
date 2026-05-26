@@ -2,12 +2,11 @@
 // Required by EU AI Act Article 50 (effective August 2026). See CLAUDE.md
 // non-negotiable #4.
 
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'AI-disclosure',
-  description:
-    'Hoe AI-assistentie wordt ingezet bij de productie van content op deze site.',
+  title: "AI-disclosure",
+  description: "Hoe AI-assistentie wordt ingezet bij de productie van content op deze site.",
 };
 
 export default function AiDisclosurePage() {
@@ -16,9 +15,9 @@ export default function AiDisclosurePage() {
       <h1>AI-disclosure</h1>
 
       <p>
-        Veel artikelen op deze site worden voorbereid met behulp van AI
-        (Anthropic Claude). Elke pagina is door een menselijke redacteur
-        beoordeeld, gecorrigeerd en goedgekeurd voor publicatie.
+        Veel artikelen op deze site worden voorbereid met behulp van AI (Anthropic Claude). Elke
+        pagina is door een menselijke redacteur beoordeeld, gecorrigeerd en goedgekeurd voor
+        publicatie.
       </p>
 
       <h2>Wat doet AI hier wel</h2>

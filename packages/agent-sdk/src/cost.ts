@@ -5,9 +5,9 @@
 import {
   CACHE_PRICE_MULTIPLIERS,
   CLAUDE_PRICES_USD_PER_MTOK,
-  USD_TO_EUR_DEFAULT,
   type ClaudeModelString,
-} from '@nichefinder/shared';
+  USD_TO_EUR_DEFAULT,
+} from "@nichefinder/shared";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -47,13 +47,9 @@ export function computeCost(
   const inputCostUsd = (usage.inputTokens / 1_000_000) * price.input;
   const outputCostUsd = (usage.outputTokens / 1_000_000) * price.output;
   const cacheWriteCostUsd =
-    ((usage.cacheWriteTokens ?? 0) / 1_000_000) *
-    price.input *
-    CACHE_PRICE_MULTIPLIERS.cacheWrite;
+    ((usage.cacheWriteTokens ?? 0) / 1_000_000) * price.input * CACHE_PRICE_MULTIPLIERS.cacheWrite;
   const cacheReadCostUsd =
-    ((usage.cacheReadTokens ?? 0) / 1_000_000) *
-    price.input *
-    CACHE_PRICE_MULTIPLIERS.cacheRead;
+    ((usage.cacheReadTokens ?? 0) / 1_000_000) * price.input * CACHE_PRICE_MULTIPLIERS.cacheRead;
 
   const totalUsd = inputCostUsd + outputCostUsd + cacheWriteCostUsd + cacheReadCostUsd;
 

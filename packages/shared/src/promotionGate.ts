@@ -9,10 +9,10 @@
 // canonical SQL definition lives in packages/db/migrations/0001_init.sql; the
 // matching Drizzle enum is exported from `@nichefinder/db`.
 export type PromotionEvaluationResult =
-  | 'not_ready'
-  | 'ready'
-  | 'blocked_by_update_window'
-  | 'blocked_by_single_source';
+  | "not_ready"
+  | "ready"
+  | "blocked_by_update_window"
+  | "blocked_by_single_source";
 
 // ---------------------------------------------------------------------------
 // Thresholds
@@ -122,11 +122,10 @@ export function evaluatePromotionGate(input: PromotionInputs): PromotionEvaluati
       minMonthEur: PROMOTION_THRESHOLDS.minMonthlyRevenueFloorEur,
     },
   };
-  if (!revPass) failing.push('revenue');
+  if (!revPass) failing.push("revenue");
 
   // C2 organic clicks
-  const clicksAvg =
-    input.monthlyOrganicClicks.reduce((a, b) => a + b, 0) / 3;
+  const clicksAvg = input.monthlyOrganicClicks.reduce((a, b) => a + b, 0) / 3;
   const clicksPass =
     clicksAvg >= PROMOTION_THRESHOLDS.minOrganicClicksPerMonth &&
     input.nonBrandLongTailShare >= PROMOTION_THRESHOLDS.minNonBrandLongTailShare;
@@ -138,7 +137,7 @@ export function evaluatePromotionGate(input: PromotionInputs): PromotionEvaluati
       minNonBrandShare: PROMOTION_THRESHOLDS.minNonBrandLongTailShare,
     },
   };
-  if (!clicksPass) failing.push('organic_clicks');
+  if (!clicksPass) failing.push("organic_clicks");
 
   // C3 diversity
   const shares = Object.values(input.affiliateSourcesShare);
@@ -161,7 +160,7 @@ export function evaluatePromotionGate(input: PromotionInputs): PromotionEvaluati
       maxProductShare: PROMOTION_THRESHOLDS.maxSingleProductShare,
     },
   };
-  if (!diversityPass) failing.push('diversity');
+  if (!diversityPass) failing.push("diversity");
 
   // C4 branded search
   const brandPass = input.brandedQueriesPerMonth >= PROMOTION_THRESHOLDS.minBrandedQueriesPerMonth;
@@ -170,7 +169,7 @@ export function evaluatePromotionGate(input: PromotionInputs): PromotionEvaluati
     value: input.brandedQueriesPerMonth,
     threshold: PROMOTION_THRESHOLDS.minBrandedQueriesPerMonth,
   };
-  if (!brandPass) failing.push('branded_search');
+  if (!brandPass) failing.push("branded_search");
 
   // C5 engagement
   const e = input.engagement;
@@ -189,7 +188,7 @@ export function evaluatePromotionGate(input: PromotionInputs): PromotionEvaluati
       maxBounce: PROMOTION_THRESHOLDS.maxBounceRate,
     },
   };
-  if (!engPass) failing.push('engagement');
+  if (!engPass) failing.push("engagement");
 
   // C6 algorithm cooldown
   const now = Date.now();
@@ -204,34 +203,32 @@ export function evaluatePromotionGate(input: PromotionInputs): PromotionEvaluati
     value: recentEvents,
     threshold: { cooldownDays: PROMOTION_THRESHOLDS.algorithmEventCooldownDays },
   };
-  if (!algoPass) failing.push('algorithm_quiet');
+  if (!algoPass) failing.push("algorithm_quiet");
 
   // C7 manual actions
   const maPass = input.gscManualActions.length === 0;
   criteria.no_manual_action = {
     passed: maPass,
     value: input.gscManualActions,
-    threshold: 'zero open manual actions',
+    threshold: "zero open manual actions",
   };
-  if (!maPass) failing.push('no_manual_action');
+  if (!maPass) failing.push("no_manual_action");
 
   // Decision tree (mirrors AGENT_PROMPTS.md promotion@1.0.0)
   let result: PromotionEvaluationResult;
   let earliestRetry: Date | null = null;
   if (!algoPass) {
-    result = 'blocked_by_update_window';
-    const latestEnd = Math.max(
-      ...recentEvents.map((ev) => (ev.endedAt ?? new Date()).getTime()),
-    );
+    result = "blocked_by_update_window";
+    const latestEnd = Math.max(...recentEvents.map((ev) => (ev.endedAt ?? new Date()).getTime()));
     earliestRetry = new Date(
       latestEnd + PROMOTION_THRESHOLDS.algorithmEventCooldownDays * 86_400_000,
     );
   } else if (!diversityPass && maxShare > PROMOTION_THRESHOLDS.maxSingleNetworkShare) {
-    result = 'blocked_by_single_source';
+    result = "blocked_by_single_source";
   } else if (failing.length === 0) {
-    result = 'ready';
+    result = "ready";
   } else {
-    result = 'not_ready';
+    result = "not_ready";
   }
 
   return { result, criteria, earliestRetryDate: earliestRetry, failingReasons: failing };

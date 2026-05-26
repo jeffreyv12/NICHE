@@ -2,9 +2,9 @@
 // Use this from Next.js Route Handlers and server components.
 // For RLS-bypassing operations (agents, migrations), use ./service-client.ts.
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import * as schema from './schema';
+import { type PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema";
 
 let cached: PostgresJsDatabase<typeof schema> | undefined;
 
@@ -22,9 +22,7 @@ export function getDb(): PostgresJsDatabase<typeof schema> {
 
   const url = process.env.DATABASE_POOL_URL ?? process.env.DATABASE_URL;
   if (!url) {
-    throw new Error(
-      'DATABASE_POOL_URL (or DATABASE_URL) must be set. See .env.example.',
-    );
+    throw new Error("DATABASE_POOL_URL (or DATABASE_URL) must be set. See .env.example.");
   }
 
   // postgres-js client. `prepare: false` is mandatory for Supavisor transaction-mode pooling.
@@ -35,7 +33,7 @@ export function getDb(): PostgresJsDatabase<typeof schema> {
     prepare: false,
   });
 
-  cached = drizzle(client, { schema, logger: process.env.NODE_ENV === 'development' });
+  cached = drizzle(client, { schema, logger: process.env.NODE_ENV === "development" });
   return cached;
 }
 
