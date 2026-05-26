@@ -8,3 +8,13 @@ export * as daisycon from "./sources/daisycon/index.js";
 export * as youtube from "./sources/youtube/index.js";
 export * as wikipedia from "./sources/wikipedia/index.js";
 export * as euipo from "./sources/euipo/index.js";
+
+export { runScoringJob } from "./jobs/scoring.js";
+export type { RunScoringJobOptions, RunScoringJobResult } from "./jobs/scoring.js";
+export {
+  buildDefaultPrefetch,
+  type ScoringPrefetch,
+  type AffiliateSignalAdapter,
+  type KeywordSignalAdapter,
+  type PrefetchContext,
+} from "./jobs/prefetch.js";

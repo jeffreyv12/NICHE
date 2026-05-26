@@ -35,6 +35,9 @@ importers:
       '@nichefinder/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      drizzle-orm:
+        specifier: 0.36.4
+        version: 0.36.4(@types/react@19.0.2)(postgres@3.4.5)(react@19.0.0)
       zod:
         specifier: ^3.23.8
         version: 3.23.8
