@@ -4,6 +4,8 @@
 
 import { getServiceRoleSupabase } from "../../../lib/supabase";
 
+export const dynamic = "force-dynamic";
+
 async function loadCounts() {
   const supabase = getServiceRoleSupabase();
   const [tenants, niches, candidates, runs] = await Promise.all([
