@@ -261,13 +261,10 @@ export const AVOID_CATEGORIES: readonly KillCategory[] = [
     reason: "entrenched incumbents with €10M+ marketing budgets",
     stems: ["best vpn", "vpn review", "beste vpn"],
   },
-  {
-    id: "crypto_exchange",
-    title: "Crypto exchange affiliate",
-    severity: "avoid",
-    reason: "regulatory shifting; weak trust signals; YMYL-adjacent",
-    stems: ["crypto exchange", "binance review", "kraken review"],
-  },
+  // crypto_exchange removed: every stem ("crypto …") is a substring of the
+  // financial_regulated hard-block stem "crypto" — the hard-block correctly
+  // catches it first and a redundant avoid entry would never fire. Keeping
+  // the comment so a future operator doesn't re-add it.
   {
     id: "generic_kitchen_gadgets",
     title: "Generic kitchen gadgets",

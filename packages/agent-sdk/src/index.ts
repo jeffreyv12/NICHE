@@ -25,3 +25,4 @@ export {
   type RunAgentResult,
 } from "./runAgent";
 export * as echoAgent from "./agents/echo";
+export * as discoveryAgent from "./agents/discovery";
