@@ -27,3 +27,7 @@ export {
 export * as echoAgent from "./agents/echo";
 export * as discoveryAgent from "./agents/discovery";
 export * as scoringAgent from "./agents/scoring";
+export * as validationAgent from "./agents/validation";
+export * as contentAgent from "./agents/content";
+export * as promotionAgent from "./agents/promotion";
+export * as orchestratorAgent from "./agents/orchestrator";
