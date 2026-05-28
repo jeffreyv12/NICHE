@@ -8,7 +8,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "../../../../../lib/auth";
 import { getServiceRoleSupabase } from "../../../../../lib/supabase";
-import { approvePageAction, rejectPageAction } from "./actions";
+import { approvePageAction, confirmValidationAction, rejectPageAction } from "./actions";
+
+type ValidationDecision = "go" | "pivot" | "kill";
 
 interface RouteParams {
   id: string;
@@ -38,7 +40,35 @@ interface PageRow {
   created_at: string;
 }
 
-async function load(id: string): Promise<{ niche: NicheRow; pages: PageRow[] } | null> {
+interface ValidationKeyMetrics {
+  sessions: number;
+  affiliate_clicks: number;
+  affiliate_conversions: number;
+  affiliate_revenue_eur: number;
+  email_signups: number;
+  avg_time_on_page_seconds: number;
+  ctr_to_affiliate: number;
+}
+
+interface ValidationEvalRow {
+  id: string;
+  evaluated_at: string;
+  window_days: number;
+  decision: ValidationDecision;
+  confidence: string;
+  model_decision: ValidationDecision;
+  safeguard_reason: string | null;
+  rationale: string;
+  key_metrics: ValidationKeyMetrics | null;
+  next_actions: string[] | null;
+  confirmed_at: string | null;
+  confirmed_by_email: string | null;
+  resulting_state: string | null;
+}
+
+async function load(
+  id: string,
+): Promise<{ niche: NicheRow; pages: PageRow[]; validation: ValidationEvalRow | null } | null> {
   const supabase = getServiceRoleSupabase();
 
   const { data: niche, error: nErr } = await supabase
@@ -66,9 +96,20 @@ async function load(id: string): Promise<{ niche: NicheRow; pages: PageRow[] } |
     .eq("niche_id", id)
     .order("created_at", { ascending: true });
 
+  const { data: validation } = await supabase
+    .from("validation_evaluations")
+    .select(
+      "id, evaluated_at, window_days, decision, confidence, model_decision, safeguard_reason, rationale, key_metrics, next_actions, confirmed_at, confirmed_by_email, resulting_state",
+    )
+    .eq("niche_id", id)
+    .order("evaluated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return {
     niche: { ...niche, tenant } as NicheRow,
     pages: (pages ?? []) as PageRow[],
+    validation: (validation ?? null) as ValidationEvalRow | null,
   };
 }
 
@@ -108,7 +149,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
   const { id } = await params;
   const data = await load(id);
   if (!data) notFound();
-  const { niche, pages } = data;
+  const { niche, pages, validation } = data;
 
   return (
     <article>
@@ -156,6 +197,8 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
           </p>
         ) : null}
       </section>
+
+      <ValidationSection niche={niche} validation={validation} />
 
       <section>
         <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Test-pagina's ({pages.length})</h2>
@@ -236,6 +279,180 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
         )}
       </section>
     </article>
+  );
+}
+
+const DECISION_COLOURS: Record<ValidationDecision, string> = {
+  go: "#059669",
+  pivot: "#f59e0b",
+  kill: "#ef4444",
+};
+const DECISION_LABELS: Record<ValidationDecision, string> = {
+  go: "GO — bouwen",
+  pivot: "PIVOT — bijsturen",
+  kill: "KILL — stoppen",
+};
+
+function fmtEur(n: number): string {
+  return `€${n.toFixed(2).replace(".", ",")}`;
+}
+
+function ValidationSection({
+  niche,
+  validation,
+}: {
+  niche: NicheRow;
+  validation: ValidationEvalRow | null;
+}) {
+  return (
+    <section style={{ marginBottom: "1.5rem" }}>
+      <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Validation</h2>
+
+      {!validation ? (
+        <p style={{ fontSize: "0.875rem", color: "#525252" }}>
+          Nog geen aanbeveling. De cron <code>validation-once</code> draait wekelijks (vr 18:00 NL)
+          op niches in <code>validating</code>, of on-demand via{" "}
+          <code>validation-once --niche {niche.id}</code>.
+        </p>
+      ) : (
+        <ValidationCard niche={niche} v={validation} />
+      )}
+    </section>
+  );
+}
+
+function ValidationCard({ niche, v }: { niche: NicheRow; v: ValidationEvalRow }) {
+  const colour = DECISION_COLOURS[v.decision] ?? "#525252";
+  const amended = v.safeguard_reason !== null && v.model_decision !== v.decision;
+  const canConfirm = niche.state === "validating" && v.confirmed_at === null;
+
+  return (
+    <div style={{ border: `1px solid ${colour}`, borderRadius: "0.5rem", padding: "1rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+        <span
+          style={{
+            background: colour,
+            color: "white",
+            padding: "0.25rem 0.75rem",
+            borderRadius: "0.375rem",
+            fontWeight: 700,
+            fontSize: "0.875rem",
+          }}
+        >
+          {DECISION_LABELS[v.decision] ?? v.decision}
+        </span>
+        <span style={{ fontSize: "0.8125rem", color: "#525252" }}>
+          vertrouwen: <strong>{v.confidence}</strong> · venster {v.window_days}d ·{" "}
+          {fmtDate(v.evaluated_at)}
+        </span>
+      </div>
+
+      {amended ? (
+        <p
+          style={{
+            fontSize: "0.8125rem",
+            marginTop: "0.5rem",
+            color: "#92400e",
+            background: "#fef3c7",
+            padding: "0.5rem 0.75rem",
+            borderRadius: "0.375rem",
+          }}
+        >
+          Host-safeguard heeft het model-advies <strong>{v.model_decision}</strong> bijgesteld naar{" "}
+          <strong>{v.decision}</strong> ({v.safeguard_reason}).
+        </p>
+      ) : null}
+
+      <p style={{ fontSize: "0.875rem", marginTop: "0.75rem", lineHeight: 1.5 }}>{v.rationale}</p>
+
+      {v.key_metrics ? (
+        <dl
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(8rem, 1fr))",
+            gap: "0.5rem 1rem",
+            fontSize: "0.8125rem",
+            marginTop: "0.75rem",
+          }}
+        >
+          <Metric label="Sessies" value={String(v.key_metrics.sessions)} />
+          <Metric label="Aff. clicks" value={String(v.key_metrics.affiliate_clicks)} />
+          <Metric label="Conversies" value={String(v.key_metrics.affiliate_conversions)} />
+          <Metric label="Omzet" value={fmtEur(v.key_metrics.affiliate_revenue_eur)} />
+          <Metric
+            label="CTR → aff."
+            value={`${(v.key_metrics.ctr_to_affiliate * 100).toFixed(1)}%`}
+          />
+          <Metric label="E-mail signups" value={String(v.key_metrics.email_signups)} />
+        </dl>
+      ) : null}
+
+      {v.next_actions && v.next_actions.length > 0 ? (
+        <div style={{ marginTop: "0.75rem" }}>
+          <strong style={{ fontSize: "0.8125rem" }}>Volgende acties</strong>
+          <ul style={{ fontSize: "0.8125rem", margin: "0.25rem 0 0", paddingLeft: "1.25rem" }}>
+            {v.next_actions.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {v.confirmed_at ? (
+        <p style={{ fontSize: "0.8125rem", marginTop: "0.75rem", color: "#059669" }}>
+          Bevestigd als <strong>{v.resulting_state}</strong> op {fmtDate(v.confirmed_at)} door{" "}
+          {v.confirmed_by_email}.
+        </p>
+      ) : canConfirm ? (
+        <div style={{ marginTop: "1rem" }}>
+          <p style={{ fontSize: "0.8125rem", color: "#525252", marginBottom: "0.5rem" }}>
+            Bevestig de beslissing (jij beslist — de agent adviseert alleen):
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {(["go", "pivot", "kill"] as const).map((d) => (
+              <form
+                key={d}
+                action={async () => {
+                  "use server";
+                  await confirmValidationAction(v.id, d);
+                }}
+              >
+                <button
+                  type="submit"
+                  style={{
+                    fontSize: "0.8125rem",
+                    padding: "0.375rem 0.875rem",
+                    borderRadius: "0.375rem",
+                    border: `1px solid ${DECISION_COLOURS[d]}`,
+                    cursor: "pointer",
+                    fontWeight: d === v.decision ? 700 : 400,
+                    background: d === v.decision ? DECISION_COLOURS[d] : "white",
+                    color: d === v.decision ? "white" : DECISION_COLOURS[d],
+                  }}
+                >
+                  {DECISION_LABELS[d]}
+                  {d === v.decision ? " ✓" : ""}
+                </button>
+              </form>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p style={{ fontSize: "0.8125rem", marginTop: "0.75rem", color: "#737373" }}>
+          Niet te bevestigen: niche staat in <code>{niche.state}</code> (verwacht{" "}
+          <code>validating</code>).
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt style={{ color: "#737373" }}>{label}</dt>
+      <dd style={{ margin: 0, fontWeight: 600 }}>{value}</dd>
+    </div>
   );
 }
 

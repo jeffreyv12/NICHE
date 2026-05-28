@@ -75,3 +75,92 @@ export async function rejectPageAction(pageId: string): Promise<PageActionResult
   if (page.nicheId) revalidatePath(`/admin/niches/${page.nicheId}`);
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3.3 — confirm a Validation Agent recommendation.
+//
+// The agent writes a recommendation to validation_evaluations; it does NOT
+// move niches.state. This action is the operator approval gate (CLAUDE.md #1,
+// #13): only here does the niche transition. The operator may accept the
+// recommended decision or override it with a different one.
+// ---------------------------------------------------------------------------
+
+export type ValidationDecision = "go" | "pivot" | "kill";
+
+// decision → niche_state. "kill" maps to the "killed" state.
+const DECISION_TO_STATE: Record<ValidationDecision, string> = {
+  go: "go",
+  pivot: "pivot",
+  kill: "killed",
+};
+
+export async function confirmValidationAction(
+  evaluationId: string,
+  decision: ValidationDecision,
+): Promise<PageActionResult> {
+  const admin = await requireAdmin();
+  if (!evaluationId) return { ok: false, error: "missing evaluation id" };
+  if (!(decision in DECISION_TO_STATE)) return { ok: false, error: `bad decision: ${decision}` };
+
+  const supabase = getServiceRoleSupabase();
+
+  const { data: evaluation } = await supabase
+    .from("validation_evaluations")
+    .select("id, niche_id, confirmed_at, rationale")
+    .eq("id", evaluationId)
+    .maybeSingle();
+  if (!evaluation) return { ok: false, error: "evaluation not found" };
+  if (evaluation.confirmed_at) return { ok: false, error: "already confirmed" };
+
+  const { data: niche } = await supabase
+    .from("niches")
+    .select("id, state, notes")
+    .eq("id", evaluation.niche_id)
+    .maybeSingle();
+  if (!niche) return { ok: false, error: "niche not found" };
+  if (niche.state !== "validating") {
+    return { ok: false, error: `cannot confirm validation from state=${niche.state}` };
+  }
+
+  const now = new Date().toISOString();
+  const newState = DECISION_TO_STATE[decision];
+  const noteLine =
+    `[validation ${decision} · ${now} · ${admin.email}] ${evaluation.rationale ?? ""}`.trim();
+  const notes = niche.notes ? `${niche.notes}\n${noteLine}` : noteLine;
+
+  const nicheUpdate: Record<string, unknown> = {
+    state: newState,
+    validation_decided_at: now,
+    notes,
+  };
+  if (decision === "kill") {
+    nicheUpdate.killed_at = now;
+    nicheUpdate.kill_reason = "manual_operator_kill";
+  }
+
+  const { error: nicheErr } = await supabase.from("niches").update(nicheUpdate).eq("id", niche.id);
+  if (nicheErr) return { ok: false, error: nicheErr.message };
+
+  const { error: evalErr } = await supabase
+    .from("validation_evaluations")
+    .update({
+      confirmed_at: now,
+      confirmed_by_email: admin.email,
+      resulting_state: newState,
+    })
+    .eq("id", evaluationId);
+  if (evalErr) return { ok: false, error: evalErr.message };
+
+  // A confirmed kill leaves a kills-table audit row (mirrors kill-list flow).
+  if (decision === "kill") {
+    await supabase.from("kills").insert({
+      niche_id: niche.id,
+      reason: "manual_operator_kill",
+      details: evaluation.rationale ?? "validation kill",
+      decided_by: admin.email,
+    });
+  }
+
+  revalidatePath(`/admin/niches/${niche.id}`);
+  return { ok: true };
+}
