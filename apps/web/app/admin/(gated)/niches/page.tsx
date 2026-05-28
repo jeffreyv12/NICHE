@@ -11,9 +11,40 @@
 // components in ./_components.
 
 import { CRITERION_KEYS } from "@nichefinder/shared";
+import Link from "next/link";
 import { getServiceRoleSupabase } from "../../../../lib/supabase";
 import { FilterBar, type NicheFilters } from "./_components/FilterBar";
 import { type NicheRow, NicheTable } from "./_components/NicheTable";
+
+interface NicheInValidation {
+  id: string;
+  topic: string;
+  state: string;
+  approved_for_validation_at: string | null;
+  page_count: number;
+}
+
+async function loadNichesInValidation(): Promise<NicheInValidation[]> {
+  const supabase = getServiceRoleSupabase();
+  const { data: nichesData } = await supabase
+    .from("niches")
+    .select("id, topic, state, approved_for_validation_at")
+    .in("state", ["approved_for_validation", "validating", "go", "pivot"])
+    .order("approved_for_validation_at", { ascending: false })
+    .limit(20);
+  if (!nichesData?.length) return [];
+
+  const nicheIds = nichesData.map((n) => n.id);
+  const { data: pageRows } = await supabase
+    .from("pages")
+    .select("niche_id")
+    .in("niche_id", nicheIds);
+  const counts = new Map<string, number>();
+  for (const p of pageRows ?? []) {
+    if (p.niche_id) counts.set(p.niche_id, (counts.get(p.niche_id) ?? 0) + 1);
+  }
+  return nichesData.map((n) => ({ ...n, page_count: counts.get(n.id) ?? 0 }));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +55,7 @@ interface PageProps {
 export default async function NichesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const filters = parseFilters(params);
-  const rows = await loadRows(filters);
+  const [rows, inValidation] = await Promise.all([loadRows(filters), loadNichesInValidation()]);
 
   return (
     <div>
@@ -35,6 +66,31 @@ export default async function NichesPage({ searchParams }: PageProps) {
           breakdown.
         </p>
       </header>
+
+      {inValidation.length > 0 ? (
+        <section
+          style={{
+            background: "#fafafa",
+            border: "1px solid #e5e5e5",
+            borderRadius: "0.5rem",
+            padding: "0.75rem 1rem",
+            marginBottom: "1rem",
+            fontSize: "0.875rem",
+          }}
+        >
+          <h2 style={{ fontSize: "0.875rem", marginBottom: "0.5rem" }}>In validation</h2>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {inValidation.map((n) => (
+              <li key={n.id} style={{ padding: "0.125rem 0" }}>
+                <Link href={`/admin/niches/${n.id}`}>{n.topic}</Link>{" "}
+                <span style={{ color: "#737373" }}>
+                  · {n.state} · {n.page_count} pagina&apos;s
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <FilterBar initial={filters} />
 
