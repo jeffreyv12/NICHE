@@ -11,6 +11,18 @@ export * as euipo from "./sources/euipo/index.js";
 
 export { runScoringJob } from "./jobs/scoring.js";
 export type { RunScoringJobOptions, RunScoringJobResult } from "./jobs/scoring.js";
+export { runTestPageDraftJob } from "./jobs/test-page-draft.js";
+export type {
+  RunTestPageDraftJobOptions,
+  RunTestPageDraftJobResult,
+  DraftedTestPage,
+} from "./jobs/test-page-draft.js";
+export { runTestPageDraftSweep } from "./jobs/test-page-draft-sweep.js";
+export type {
+  RunTestPageDraftSweepOptions,
+  RunTestPageDraftSweepResult,
+} from "./jobs/test-page-draft-sweep.js";
+export { planTestPages, type TestPagePlanItem } from "./jobs/planTestPages.js";
 export {
   buildDefaultPrefetch,
   type ScoringPrefetch,
