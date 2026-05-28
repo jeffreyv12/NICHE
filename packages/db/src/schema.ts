@@ -426,6 +426,51 @@ export const promotionEvaluations = pgTable(
   }),
 );
 
+// VALIDATION EVALUATIONS --------------------------------------------------
+// Phase 3.3. The agent writes a GO/PIVOT/KILL recommendation here; the
+// operator confirms a row in the admin UI, which is what transitions
+// niches.state. Mirrors promotion_evaluations' access model.
+
+export const validationEvaluations = pgTable(
+  "validation_evaluations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nicheId: uuid("niche_id")
+      .notNull()
+      .references(() => niches.id, { onDelete: "cascade" }),
+    evaluatedAt: timestamp("evaluated_at", { withTimezone: true }).notNull().defaultNow(),
+    windowDays: integer("window_days").notNull(),
+    decision: text("decision").notNull(),
+    confidence: text("confidence").notNull(),
+    modelDecision: text("model_decision").notNull(),
+    safeguardReason: text("safeguard_reason"),
+    rationale: text("rationale").notNull(),
+    keyMetrics: jsonb("key_metrics").notNull(),
+    nextActions: jsonb("next_actions").notNull(),
+    metrics: jsonb("metrics").notNull(),
+    agentRunId: uuid("agent_run_id"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    confirmedByEmail: text("confirmed_by_email"),
+    resultingState: nicheStateEnum("resulting_state"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    decisionCheck: check(
+      "validation_evaluations_decision_check",
+      sql`${t.decision} in ('go', 'pivot', 'kill')`,
+    ),
+    confidenceCheck: check(
+      "validation_evaluations_confidence_check",
+      sql`${t.confidence} in ('low', 'medium', 'high')`,
+    ),
+    modelDecisionCheck: check(
+      "validation_evaluations_model_decision_check",
+      sql`${t.modelDecision} in ('go', 'pivot', 'kill')`,
+    ),
+    nicheEvalIdx: index("validation_evaluations_niche_eval_idx").on(t.nicheId, t.evaluatedAt),
+  }),
+);
+
 // DOMAIN REGISTRATIONS ----------------------------------------------------
 
 export const domainRegistrations = pgTable("domain_registrations", {

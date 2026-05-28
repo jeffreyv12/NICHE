@@ -23,6 +23,19 @@ export type {
   RunTestPageDraftSweepResult,
 } from "./jobs/test-page-draft-sweep.js";
 export { planTestPages, type TestPagePlanItem } from "./jobs/planTestPages.js";
+export { runValidationJob } from "./jobs/validation.js";
+export type {
+  RunValidationJobOptions,
+  RunValidationJobResult,
+  ValidationJobOutcome,
+} from "./jobs/validation.js";
+export {
+  buildValidationInput,
+  emptyAnalyticsAdapter,
+  type AnalyticsAdapter,
+  type NicheAnalytics,
+  type BuildValidationInputOptions,
+} from "./jobs/validationMetrics.js";
 export {
   buildDefaultPrefetch,
   type ScoringPrefetch,
