@@ -25,6 +25,13 @@ function hashIp(ip: string | null): string | null {
   return createHash("sha256").update(`${ip}|${day}|nichefinder`).digest("hex").slice(0, 32);
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Only trust a `?p=` value that is a real UUID; otherwise attribute to no page. */
+function parsePageId(raw: string | null): string | null {
+  return raw && UUID_RE.test(raw) ? raw : null;
+}
+
 function simpleBotScore(userAgent: string | null): number {
   if (!userAgent) return 80;
   const ua = userAgent.toLowerCase();
@@ -70,12 +77,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const referrer = request.headers.get("referer");
   const url = new URL(request.url);
   const cohort = url.searchParams.get("c") ?? "organic";
+  // The test page links to /r/<code>?c=<cohort>&p=<page_id> so the click — and
+  // any conversion later attributed to it — can be tied back to the page that
+  // drove it. This is what the Validation Agent's per-page metrics rely on.
+  const pageId = parsePageId(url.searchParams.get("p"));
   const botScore = simpleBotScore(userAgent);
 
   try {
     await supabase.from("clicks").insert({
       tenant_id: link.tenant_id,
       affiliate_link_id: link.id,
+      page_id: pageId,
       ip_hash: hashIp(ip),
       user_agent: userAgent,
       referrer,

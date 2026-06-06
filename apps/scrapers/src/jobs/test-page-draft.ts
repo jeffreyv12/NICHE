@@ -257,7 +257,7 @@ async function draftOne(params: {
       external_id: r.product.externalId as string,
       name: r.product.name,
       price_eur: typeof r.product.priceCents === "number" ? r.product.priceCents / 100 : undefined,
-      url: redirectUrlFor(tenant, r.shortCode, item.cohort),
+      url: redirectUrlFor(tenant, r.shortCode, item.cohort, pageId),
       network: r.network,
     })),
     first_party_tests: [],
@@ -331,12 +331,18 @@ function defaultShortCode(): string {
   return out;
 }
 
-function redirectUrlFor(tenant: TenantRow, shortCode: string, cohort: string): string {
+function redirectUrlFor(
+  tenant: TenantRow,
+  shortCode: string,
+  cohort: string,
+  pageId: string,
+): string {
   // For NL/BE we serve under the main authority hostname during validation.
   // The agent only needs a syntactically valid absolute URL; the real host
-  // resolution happens at request time.
+  // resolution happens at request time. `p` lets /r attribute the click (and
+  // any later conversion) to this page — see apps/web/app/r/[short_code].
   const host = readHostname(tenant.config) ?? "https://example.test";
-  return `${host}/r/${shortCode}?c=${encodeURIComponent(cohort)}`;
+  return `${host}/r/${shortCode}?c=${encodeURIComponent(cohort)}&p=${pageId}`;
 }
 
 function readBrandVoiceNotes(config: Record<string, unknown>): string | undefined {
