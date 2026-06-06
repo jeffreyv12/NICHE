@@ -43,3 +43,17 @@ export {
   type KeywordSignalAdapter,
   type PrefetchContext,
 } from "./jobs/prefetch.js";
+export {
+  runReconciliationJob,
+  createDefaultReportingAdapter,
+  normalizeBolTransaction,
+  normalizeAwinTransaction,
+  normalizeDaisyconTransaction,
+  RECONCILIATION_NETWORKS,
+  type ReportingAdapter,
+  type ReportingWindow,
+  type RunReconciliationJobOptions,
+  type RunReconciliationJobResult,
+  type NetworkReconResult,
+} from "./jobs/reconciliation.js";
+export { createDrizzleConversionStore } from "./jobs/conversionStore.js";
