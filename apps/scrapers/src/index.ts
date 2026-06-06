@@ -57,3 +57,9 @@ export {
   type NetworkReconResult,
 } from "./jobs/reconciliation.js";
 export { createDrizzleConversionStore } from "./jobs/conversionStore.js";
+export { runContentPolishJob } from "./jobs/content-polish.js";
+export type {
+  RunContentPolishJobOptions,
+  RunContentPolishJobResult,
+  PolishedPage,
+} from "./jobs/content-polish.js";

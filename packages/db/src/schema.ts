@@ -194,6 +194,11 @@ export const pages = pgTable(
     aiAssisted: boolean("ai_assisted").notNull().default(true),
     aiDisclosureJsonld: jsonb("ai_disclosure_jsonld"),
     state: pageStateEnum("state").notNull().default("draft"),
+    // Phase 4.1 — Content Agent polish-pass advisories surfaced at review.
+    operatorTodos: text("operator_todos").array().notNull().default(sql`'{}'`),
+    polishNotes: text("polish_notes"),
+    needsPolishPass: boolean("needs_polish_pass").notNull().default(false),
+    polishedAt: timestamp("polished_at", { withTimezone: true }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     approvedByEmail: text("approved_by_email"),
     publishedAt: timestamp("published_at", { withTimezone: true }),

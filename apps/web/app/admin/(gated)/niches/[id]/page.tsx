@@ -40,6 +40,7 @@ interface PageRow {
   approved_at: string | null;
   approved_by_email: string | null;
   created_at: string;
+  operator_todos: string[] | null;
 }
 
 interface ValidationKeyMetrics {
@@ -97,7 +98,9 @@ async function load(id: string): Promise<{
 
   const { data: pages } = await supabase
     .from("pages")
-    .select("id, slug, full_path, kind, title, state, approved_at, approved_by_email, created_at")
+    .select(
+      "id, slug, full_path, kind, title, state, approved_at, approved_by_email, created_at, operator_todos",
+    )
     .eq("niche_id", id)
     .order("created_at", { ascending: true });
 
@@ -308,6 +311,9 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
                     </div>
                   </div>
                   {canApprove && check ? <ClaimGate check={check} /> : null}
+                  {p.operator_todos && p.operator_todos.length > 0 ? (
+                    <PolishTodos todos={p.operator_todos} />
+                  ) : null}
                 </li>
               );
             })}
@@ -508,6 +514,38 @@ const btnApproveDisabled = {
   cursor: "not-allowed",
 } as const;
 const btnReject = { ...btnBase, background: "white", color: "#ef4444", borderColor: "#ef4444" };
+
+// Phase 4.1 — operator todos from the Content Agent polish pass (e.g. a
+// "[BLOCKER] disclosure missing" advisory). Amber, distinct from the claim gate.
+function PolishTodos({ todos }: { todos: string[] }) {
+  return (
+    <div
+      style={{
+        marginTop: "0.5rem",
+        background: "#fffbeb",
+        border: "1px solid #fde68a",
+        borderRadius: "0.375rem",
+        padding: "0.5rem 0.75rem",
+      }}
+    >
+      <strong style={{ fontSize: "0.75rem", color: "#92400e" }}>
+        Polish-pass aandachtspunten ({todos.length})
+      </strong>
+      <ul
+        style={{
+          fontSize: "0.75rem",
+          color: "#78350f",
+          margin: "0.375rem 0 0",
+          paddingLeft: "1.25rem",
+        }}
+      >
+        {todos.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 // Phase 4.2 — Claim Verifier status for one draft page: green when every claim
 // is sourced, red with the blocking claims as "add a source" todos otherwise.
