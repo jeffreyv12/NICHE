@@ -8,3 +8,4 @@ export * from "./promotionGate";
 export * from "./types";
 export * from "./webhooks";
 export * from "./conversions";
+export * from "./botScore";

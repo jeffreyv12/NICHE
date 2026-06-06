@@ -8,6 +8,7 @@
 // feeds the Validation Agent's GO/PIVOT/KILL decision.
 
 import { createHash } from "node:crypto";
+import { scoreClickBot } from "@nichefinder/shared";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServiceRoleSupabase } from "../../../lib/supabase";
 
@@ -32,13 +33,13 @@ function parsePageId(raw: string | null): string | null {
   return raw && UUID_RE.test(raw) ? raw : null;
 }
 
-function simpleBotScore(userAgent: string | null): number {
-  if (!userAgent) return 80;
-  const ua = userAgent.toLowerCase();
-  if (/bot|crawl|spider|wget|curl|python-requests|java\//.test(ua)) return 95;
-  if (/headless|phantom|selenium|puppeteer|playwright/.test(ua)) return 90;
-  if (/preview|prefetch|fetch/.test(ua)) return 60;
-  return 10;
+/** Cloudflare Bot Management score (1=bot … 99=human), when the edge forwards
+ *  it via a Transform Rule. Absent on non-CF / non-Bot-Management setups. */
+function readCfBotScore(req: NextRequest): number | null {
+  const raw = req.headers.get("cf-bot-management-score");
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 interface RouteContext {
@@ -81,7 +82,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
   // any conversion later attributed to it — can be tied back to the page that
   // drove it. This is what the Validation Agent's per-page metrics rely on.
   const pageId = parsePageId(url.searchParams.get("p"));
-  const botScore = simpleBotScore(userAgent);
+  const bot = scoreClickBot({
+    userAgent,
+    cfBotScore: readCfBotScore(request),
+    verifiedBot: request.headers.get("cf-verified-bot") === "true",
+  });
 
   try {
     await supabase.from("clicks").insert({
@@ -91,8 +96,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ip_hash: hashIp(ip),
       user_agent: userAgent,
       referrer,
-      is_bot: botScore >= 70,
-      bot_score: botScore,
+      is_bot: bot.isBot,
+      bot_score: bot.score,
       cohort,
       outcome: "pending",
     });
