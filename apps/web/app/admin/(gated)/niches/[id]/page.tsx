@@ -4,9 +4,11 @@
 // for it. Operator reviews each draft, then approves so the page becomes
 // publicly renderable on /sites/[tenant]/test/[niche]/[page_slug].
 
+import { type ClaimVerificationResult, verifyClaims } from "@nichefinder/shared";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "../../../../../lib/auth";
+import { loadClaimsByPage } from "../../../../../lib/claims";
 import { getServiceRoleSupabase } from "../../../../../lib/supabase";
 import { approvePageAction, confirmValidationAction, rejectPageAction } from "./actions";
 
@@ -66,9 +68,12 @@ interface ValidationEvalRow {
   resulting_state: string | null;
 }
 
-async function load(
-  id: string,
-): Promise<{ niche: NicheRow; pages: PageRow[]; validation: ValidationEvalRow | null } | null> {
+async function load(id: string): Promise<{
+  niche: NicheRow;
+  pages: PageRow[];
+  validation: ValidationEvalRow | null;
+  claimChecks: Map<string, ClaimVerificationResult>;
+} | null> {
   const supabase = getServiceRoleSupabase();
 
   const { data: niche, error: nErr } = await supabase
@@ -106,10 +111,23 @@ async function load(
     .limit(1)
     .maybeSingle();
 
+  // Claim Verifier (Phase 4.2): only draft/rejected pages can be approved, so
+  // pre-compute their gate verdicts to render the "needs a source" todos.
+  const pageRows = (pages ?? []) as PageRow[];
+  const checkIds = pageRows
+    .filter((p) => p.state === "draft" || p.state === "rejected")
+    .map((p) => p.id);
+  const claimsByPage = await loadClaimsByPage(checkIds);
+  const claimChecks = new Map<string, ClaimVerificationResult>();
+  for (const pid of checkIds) {
+    claimChecks.set(pid, verifyClaims(claimsByPage.get(pid) ?? []));
+  }
+
   return {
     niche: { ...niche, tenant } as NicheRow,
-    pages: (pages ?? []) as PageRow[],
+    pages: pageRows,
     validation: (validation ?? null) as ValidationEvalRow | null,
+    claimChecks,
   };
 }
 
@@ -149,7 +167,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
   const { id } = await params;
   const data = await load(id);
   if (!data) notFound();
-  const { niche, pages, validation } = data;
+  const { niche, pages, validation, claimChecks } = data;
 
   return (
     <article>
@@ -209,72 +227,90 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
           </p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0 }}>
-            {pages.map((p) => (
-              <li
-                key={p.id}
-                style={{
-                  border: "1px solid #e5e5e5",
-                  borderRadius: "0.375rem",
-                  padding: "0.75rem 1rem",
-                  marginBottom: "0.5rem",
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  gap: "1rem",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <StateBadge state={p.state} />
-                    <strong>{p.title}</strong>
+            {pages.map((p) => {
+              const check = claimChecks.get(p.id);
+              const blocked = check ? !check.ok : false;
+              const canApprove = p.state === "draft" || p.state === "rejected";
+              return (
+                <li
+                  key={p.id}
+                  style={{
+                    border: "1px solid #e5e5e5",
+                    borderRadius: "0.375rem",
+                    padding: "0.75rem 1rem",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: "1rem",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        <StateBadge state={p.state} />
+                        <strong>{p.title}</strong>
+                      </div>
+                      <p style={{ fontSize: "0.75rem", color: "#737373", marginTop: "0.25rem" }}>
+                        <code>{p.full_path}</code> · {p.kind} · gemaakt {fmtDate(p.created_at)}
+                        {p.approved_at ? (
+                          <>
+                            {" "}
+                            · approved {fmtDate(p.approved_at)} door {p.approved_by_email}
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      {(p.state === "approved" || p.state === "published") && niche.tenant ? (
+                        <Link
+                          href={`/sites/${niche.tenant.slug}${p.full_path}`}
+                          target="_blank"
+                          style={{ fontSize: "0.75rem" }}
+                        >
+                          Preview ↗
+                        </Link>
+                      ) : null}
+                      {canApprove ? (
+                        <form
+                          action={async () => {
+                            "use server";
+                            await approvePageAction(p.id);
+                          }}
+                        >
+                          <button
+                            type="submit"
+                            style={blocked ? btnApproveDisabled : btnApprove}
+                            disabled={blocked}
+                            title={
+                              blocked ? "Bron(nen) toevoegen voordat je kunt goedkeuren" : undefined
+                            }
+                          >
+                            Approve
+                          </button>
+                        </form>
+                      ) : null}
+                      {p.state === "draft" ? (
+                        <form
+                          action={async () => {
+                            "use server";
+                            await rejectPageAction(p.id);
+                          }}
+                        >
+                          <button type="submit" style={btnReject}>
+                            Reject
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
                   </div>
-                  <p style={{ fontSize: "0.75rem", color: "#737373", marginTop: "0.25rem" }}>
-                    <code>{p.full_path}</code> · {p.kind} · gemaakt {fmtDate(p.created_at)}
-                    {p.approved_at ? (
-                      <>
-                        {" "}
-                        · approved {fmtDate(p.approved_at)} door {p.approved_by_email}
-                      </>
-                    ) : null}
-                  </p>
-                </div>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  {(p.state === "approved" || p.state === "published") && niche.tenant ? (
-                    <Link
-                      href={`/sites/${niche.tenant.slug}${p.full_path}`}
-                      target="_blank"
-                      style={{ fontSize: "0.75rem" }}
-                    >
-                      Preview ↗
-                    </Link>
-                  ) : null}
-                  {p.state === "draft" || p.state === "rejected" ? (
-                    <form
-                      action={async () => {
-                        "use server";
-                        await approvePageAction(p.id);
-                      }}
-                    >
-                      <button type="submit" style={btnApprove}>
-                        Approve
-                      </button>
-                    </form>
-                  ) : null}
-                  {p.state === "draft" ? (
-                    <form
-                      action={async () => {
-                        "use server";
-                        await rejectPageAction(p.id);
-                      }}
-                    >
-                      <button type="submit" style={btnReject}>
-                        Reject
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                  {canApprove && check ? <ClaimGate check={check} /> : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -464,4 +500,60 @@ const btnBase = {
   cursor: "pointer",
 } as const;
 const btnApprove = { ...btnBase, background: "#10b981", color: "white", borderColor: "#059669" };
+const btnApproveDisabled = {
+  ...btnBase,
+  background: "#d1d5db",
+  color: "#6b7280",
+  borderColor: "#d1d5db",
+  cursor: "not-allowed",
+} as const;
 const btnReject = { ...btnBase, background: "white", color: "#ef4444", borderColor: "#ef4444" };
+
+// Phase 4.2 — Claim Verifier status for one draft page: green when every claim
+// is sourced, red with the blocking claims as "add a source" todos otherwise.
+function ClaimGate({ check }: { check: ClaimVerificationResult }) {
+  if (check.total === 0) {
+    return (
+      <p style={{ fontSize: "0.75rem", color: "#737373", marginTop: "0.5rem" }}>
+        Geen claims gemarkeerd op deze pagina.
+      </p>
+    );
+  }
+  if (check.ok) {
+    return (
+      <p style={{ fontSize: "0.75rem", color: "#059669", marginTop: "0.5rem" }}>
+        ✓ Alle {check.total} claims hebben een bron.
+      </p>
+    );
+  }
+  return (
+    <div
+      style={{
+        marginTop: "0.5rem",
+        background: "#fef2f2",
+        border: "1px solid #fecaca",
+        borderRadius: "0.375rem",
+        padding: "0.5rem 0.75rem",
+      }}
+    >
+      <strong style={{ fontSize: "0.75rem", color: "#b91c1c" }}>
+        {check.unsourced.length} van {check.total} claims missen een bron — voeg een bron toe
+        voordat je goedkeurt:
+      </strong>
+      <ul
+        style={{
+          fontSize: "0.75rem",
+          color: "#7f1d1d",
+          margin: "0.375rem 0 0",
+          paddingLeft: "1.25rem",
+        }}
+      >
+        {check.unsourced.map((u) => (
+          <li key={u.claimId}>
+            {u.claimText} <span style={{ color: "#9ca3af" }}>({u.claimType})</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

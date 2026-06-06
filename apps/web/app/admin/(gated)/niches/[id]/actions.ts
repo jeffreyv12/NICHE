@@ -7,9 +7,10 @@
 // to flip state. Approval is the gate before the page becomes publicly
 // renderable (CLAUDE.md non-negotiable #1).
 
-import { type ClaimInput, type ClaimSourceInput, verifyClaims } from "@nichefinder/shared";
+import { verifyClaims } from "@nichefinder/shared";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "../../../../../lib/auth";
+import { loadPageClaims } from "../../../../../lib/claims";
 import { getServiceRoleSupabase } from "../../../../../lib/supabase";
 
 export interface PageActionResult {
@@ -17,42 +18,6 @@ export interface PageActionResult {
   error?: string;
   /** Phase 4.2 — claims blocking approval; operator must add a source. */
   unsourcedClaims?: Array<{ claimId: string; claimText: string }>;
-}
-
-/** Load a page's claims and their sources for the Claim Verifier gate. */
-async function loadPageClaims(pageId: string): Promise<ClaimInput[]> {
-  const supabase = getServiceRoleSupabase();
-  const { data: claimRows } = await supabase
-    .from("claims")
-    .select("id, claim_text, claim_type")
-    .eq("page_id", pageId);
-  if (!claimRows || claimRows.length === 0) return [];
-
-  const claimIds = claimRows.map((c) => c.id);
-  const { data: sourceRows } = (await supabase
-    .from("claim_sources")
-    .select("claim_id, source_url, first_party_test_id")
-    .in("claim_id", claimIds)) as {
-    data: Array<{
-      claim_id: string;
-      source_url: string | null;
-      first_party_test_id: string | null;
-    }> | null;
-  };
-
-  const byClaim = new Map<string, ClaimSourceInput[]>();
-  for (const s of sourceRows ?? []) {
-    const arr = byClaim.get(s.claim_id) ?? [];
-    arr.push({ sourceUrl: s.source_url, firstPartyTestId: s.first_party_test_id });
-    byClaim.set(s.claim_id, arr);
-  }
-
-  return claimRows.map((c) => ({
-    id: c.id,
-    claimText: c.claim_text,
-    claimType: c.claim_type,
-    sources: byClaim.get(c.id) ?? [],
-  }));
 }
 
 async function loadPageForAdmin(
