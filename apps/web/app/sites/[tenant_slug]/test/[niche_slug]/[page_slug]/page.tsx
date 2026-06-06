@@ -8,11 +8,17 @@
 // + AI disclosure JSON-LD are rendered here per CLAUDE.md non-negotiable #4.
 
 import type { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AiAssistedBadge } from "../../../../../../components/AiAssistedBadge";
+import { PUBLIC_PAGE_REVALIDATE_SECONDS, pageTag, tenantTag } from "../../../../../../lib/cache";
 import { getServiceRoleSupabase } from "../../../../../../lib/supabase";
+
+// ISR: a published test page is served from cache and refreshed at most daily;
+// a publish/edit busts its tag immediately (see approvePageAction).
+export const revalidate = 86_400;
 
 interface RouteParams {
   tenant_slug: string;
@@ -35,7 +41,7 @@ interface PageRow {
 
 const VISIBLE_STATES = new Set(["approved", "published"]);
 
-async function loadPage(params: RouteParams): Promise<PageRow | null> {
+async function loadPageUncached(params: RouteParams): Promise<PageRow | null> {
   const supabase = getServiceRoleSupabase();
 
   // Resolve tenant first so the query is tenant-scoped (defence-in-depth even
@@ -60,6 +66,19 @@ async function loadPage(params: RouteParams): Promise<PageRow | null> {
 
   if (error || !data) return null;
   return data as PageRow;
+}
+
+/** ISR-cached page read, tagged so a publish/edit can invalidate it on demand. */
+function loadPage(params: RouteParams): Promise<PageRow | null> {
+  const fullPath = `/test/${params.niche_slug}/${params.page_slug}`;
+  return unstable_cache(
+    () => loadPageUncached(params),
+    ["public-test-page", params.tenant_slug, fullPath],
+    {
+      tags: [tenantTag(params.tenant_slug), pageTag(params.tenant_slug, fullPath)],
+      revalidate: PUBLIC_PAGE_REVALIDATE_SECONDS,
+    },
+  )();
 }
 
 export async function generateMetadata({

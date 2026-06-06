@@ -8,8 +8,9 @@
 // renderable (CLAUDE.md non-negotiable #1).
 
 import { verifyClaims } from "@nichefinder/shared";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "../../../../../lib/auth";
+import { pageTag, tenantTag } from "../../../../../lib/cache";
 import { loadPageClaims } from "../../../../../lib/claims";
 import { getServiceRoleSupabase } from "../../../../../lib/supabase";
 
@@ -20,14 +21,18 @@ export interface PageActionResult {
   unsourcedClaims?: Array<{ claimId: string; claimText: string }>;
 }
 
-async function loadPageForAdmin(
-  pageId: string,
-): Promise<{ id: string; tenantId: string; nicheId: string | null; state: string } | null> {
+async function loadPageForAdmin(pageId: string): Promise<{
+  id: string;
+  tenantId: string;
+  nicheId: string | null;
+  state: string;
+  fullPath: string;
+} | null> {
   if (!pageId) return null;
   const supabase = getServiceRoleSupabase();
   const { data } = await supabase
     .from("pages")
-    .select("id, tenant_id, niche_id, state")
+    .select("id, tenant_id, niche_id, state, full_path")
     .eq("id", pageId)
     .maybeSingle();
   if (!data) return null;
@@ -36,7 +41,22 @@ async function loadPageForAdmin(
     tenantId: data.tenant_id,
     nicheId: data.niche_id,
     state: data.state,
+    fullPath: data.full_path,
   };
+}
+
+/** Bust the public ISR cache for a page once it becomes (or stops being)
+ *  publicly visible. Resolves the tenant slug from the page's tenant. */
+async function revalidatePublicPage(tenantId: string, fullPath: string): Promise<void> {
+  const supabase = getServiceRoleSupabase();
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("slug")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (!tenant?.slug) return;
+  revalidateTag(pageTag(tenant.slug, fullPath));
+  revalidateTag(tenantTag(tenant.slug));
 }
 
 /**
@@ -76,6 +96,9 @@ export async function approvePageAction(pageId: string): Promise<PageActionResul
     .eq("id", pageId);
   if (error) return { ok: false, error: error.message };
 
+  // The page is now publicly visible — bust its ISR cache so it appears within
+  // seconds rather than waiting out the 24h window (Phase 4.4.2).
+  await revalidatePublicPage(page.tenantId, page.fullPath);
   if (page.nicheId) revalidatePath(`/admin/niches/${page.nicheId}`);
   return { ok: true };
 }
