@@ -24,6 +24,7 @@ import {
   niches,
   pages,
 } from "@nichefinder/db";
+import { canonicalConversionStatus, conversionCountsAsRevenue } from "@nichefinder/shared";
 import { and, eq, gte, inArray } from "drizzle-orm";
 
 type ValidationInput = validationAgent.ValidationInput;
@@ -131,9 +132,16 @@ export async function buildValidationInput(
   }
   const affiliateClicksTotal = clickRows.length;
 
-  // Conversions: count + revenue (commission, EUR).
-  const affiliateConversions = conversionRows.length;
-  const affiliateRevenueEur = conversionRows.reduce((sum, c) => sum + c.commissionCents, 0) / 100;
+  // Conversions: count + revenue (commission, EUR). Only conversions whose
+  // status counts as revenue are included — see COUNT_PENDING_AS_REVENUE in
+  // @nichefinder/shared (operator decision: pending excluded). Declined are
+  // always dropped.
+  const countableConversions = conversionRows.filter((c) =>
+    conversionCountsAsRevenue(canonicalConversionStatus(c.status)),
+  );
+  const affiliateConversions = countableConversions.length;
+  const affiliateRevenueEur =
+    countableConversions.reduce((sum, c) => sum + c.commissionCents, 0) / 100;
 
   const daysInValidation = niche.validationStartedAt
     ? Math.max(0, Math.floor((asOfMs - niche.validationStartedAt.getTime()) / 86_400_000))
@@ -216,10 +224,10 @@ async function loadConversions(
   db: ServiceDb,
   pageIds: string[],
   cutoff: Date,
-): Promise<Array<{ commissionCents: number }>> {
+): Promise<Array<{ commissionCents: number; status: string }>> {
   if (pageIds.length === 0) return [];
   return db
-    .select({ commissionCents: conversions.commissionCents })
+    .select({ commissionCents: conversions.commissionCents, status: conversions.status })
     .from(conversions)
     .where(and(gte(conversions.occurredAt, cutoff), inArray(conversions.pageId, pageIds)));
 }

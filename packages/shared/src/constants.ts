@@ -66,6 +66,27 @@ export const SOURCE_LIMITS = {
 } as const;
 
 /**
+ * Affiliate networks. Mirrors the `affiliate_network` Postgres enum in
+ * packages/db/src/enums.ts (AFFILIATE_NETWORKS) — keep the two in sync; the DB
+ * enum is the migration source of truth, this is the dependency-free copy for
+ * code (e.g. conversion ingestion) that must not import the db package.
+ */
+export const AFFILIATE_NETWORKS = [
+  "bol",
+  "awin",
+  "daisycon",
+  "digistore24",
+  "impact",
+  "other",
+] as const;
+export type AffiliateNetwork = (typeof AFFILIATE_NETWORKS)[number];
+
+/** True when `s` is a known affiliate network slug. */
+export function isAffiliateNetwork(s: string): s is AffiliateNetwork {
+  return (AFFILIATE_NETWORKS as readonly string[]).includes(s);
+}
+
+/**
  * Money helpers — keep everything in EUR cents (integer) to avoid float drift.
  */
 export const eurosToCents = (eur: number): number => Math.round(eur * 100);

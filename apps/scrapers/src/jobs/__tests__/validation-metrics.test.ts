@@ -55,7 +55,10 @@ describe("buildValidationInput", () => {
       { pageId: "p1", network: "bol" },
       { pageId: "p2", network: "awin" },
     ];
-    const conversions = [{ commissionCents: 450 }, { commissionCents: 1200 }];
+    const conversions = [
+      { commissionCents: 450, status: "approved" },
+      { commissionCents: 1200, status: "confirmed" },
+    ];
     const db = makeFakeDb([[NICHE], testPages, clicks, conversions]);
 
     const input = await buildValidationInput({
@@ -79,6 +82,24 @@ describe("buildValidationInput", () => {
     expect(input.metrics.affiliate_revenue_eur).toBeCloseTo(16.5, 5);
     // No analytics adapter → sessions zero.
     expect(input.metrics.sessions_total).toBe(0);
+  });
+
+  it("excludes pending and declined conversions from revenue (COUNT_PENDING_AS_REVENUE=false)", async () => {
+    const testPages = [{ id: "p1", fullPath: "/test/x/review" }];
+    const conversions = [
+      { commissionCents: 450, status: "approved" },
+      { commissionCents: 1200, status: "pending" },
+      { commissionCents: 999, status: "disapproved" },
+    ];
+    const db = makeFakeDb([[NICHE], testPages, /* clicks */ [], conversions]);
+
+    const input = await buildValidationInput({ db, nicheId: "n1", asOf: "2026-05-15T00:00:00Z" });
+    expect(input).not.toBeNull();
+    if (!input) return;
+
+    // Only the approved conversion counts.
+    expect(input.metrics.affiliate_conversions).toBe(1);
+    expect(input.metrics.affiliate_revenue_eur).toBeCloseTo(4.5, 5);
   });
 
   it("uses the analytics adapter for sessions / bounce / time", async () => {
