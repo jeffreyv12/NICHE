@@ -17,7 +17,17 @@ import { contentAgent } from "@nichefinder/agent-sdk";
 import type { RunAgentRuntime } from "@nichefinder/agent-sdk";
 
 type ContentDraftInput = contentAgent.ContentDraftInput;
-import { type ServiceDb, affiliateLinks, niches, pages, products, tenants } from "@nichefinder/db";
+type ContentOutput = contentAgent.ContentOutput;
+import {
+  type ServiceDb,
+  affiliateLinks,
+  claimSources,
+  claims,
+  niches,
+  pages,
+  products,
+  tenants,
+} from "@nichefinder/db";
 import { eq } from "drizzle-orm";
 import { type TestPagePlanItem, planTestPages } from "./planTestPages.js";
 
@@ -51,6 +61,8 @@ export interface DraftedTestPage {
   costEur: number;
   disclosuresAmended: boolean;
   affiliateLinkIds: string[];
+  /** Claims persisted for the Claim Verifier gate (Phase 4.2). */
+  claimsPersisted: number;
 }
 
 export interface RunTestPageDraftJobResult {
@@ -286,6 +298,11 @@ async function draftOne(params: {
     state: "draft",
   });
 
+  // Persist the claims the agent surfaced so the Claim Verifier (Phase 4.2) can
+  // gate approval. Each suggested_source becomes a claim_sources row; a claim
+  // with ≥1 source is marked is_sourced (the verifier still re-checks live).
+  const claimsPersisted = await persistClaims(db, pageId, run.output.claims);
+
   return {
     pageId,
     pageSlug: item.pageSlug,
@@ -295,7 +312,58 @@ async function draftOne(params: {
     costEur: run.costEur,
     disclosuresAmended: run.disclosuresAmended,
     affiliateLinkIds: linkRows.map((r) => r.id),
+    claimsPersisted,
   };
+}
+
+interface ClaimInsert {
+  id: string;
+  pageId: string;
+  claimText: string;
+  claimType: string;
+  isSourced: boolean;
+}
+interface ClaimSourceInsert {
+  id: string;
+  claimId: string;
+  sourceKind: string;
+  sourceUrl: string;
+  excerpt: string;
+}
+
+/** Write the agent's claims + their suggested sources. Returns claim count. */
+async function persistClaims(
+  db: ServiceDb,
+  pageId: string,
+  claimOutputs: ContentOutput["claims"],
+): Promise<number> {
+  if (claimOutputs.length === 0) return 0;
+
+  const claimRows: ClaimInsert[] = [];
+  const sourceRows: ClaimSourceInsert[] = [];
+  for (const c of claimOutputs) {
+    const claimId = randomUUID();
+    claimRows.push({
+      id: claimId,
+      pageId,
+      claimText: c.claim_text,
+      claimType: c.claim_type,
+      isSourced: c.suggested_sources.length > 0,
+    });
+    for (const s of c.suggested_sources) {
+      sourceRows.push({
+        id: randomUUID(),
+        claimId,
+        sourceKind: "web",
+        sourceUrl: s.source_url,
+        excerpt: s.excerpt,
+      });
+    }
+  }
+
+  await db.insert(claims).values(claimRows);
+  if (sourceRows.length > 0) await db.insert(claimSources).values(sourceRows);
+  return claimRows.length;
 }
 
 // -----------------------------------------------------------------------------

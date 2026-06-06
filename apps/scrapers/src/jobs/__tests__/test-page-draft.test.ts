@@ -80,6 +80,8 @@ function inferTableLabel(_table: unknown, values: unknown): string {
   if (v && typeof v === "object") {
     if ("shortCode" in v) return "affiliate_links";
     if ("kind" in v && "fullPath" in v) return "pages";
+    if ("sourceKind" in v) return "claim_sources";
+    if ("claimText" in v) return "claims";
   }
   return "unknown";
 }
@@ -195,6 +197,61 @@ describe("runTestPageDraftJob", () => {
       expect(v.kind).toBe("test_page");
       expect(v.aiAssisted).toBe(true);
     }
+  });
+
+  it("persists the agent's claims + sources for the Claim Verifier gate", async () => {
+    mockedDraft.mockImplementation(async (_runtime, input) => ({
+      output: {
+        page: {
+          title: `${input.page.kind}`,
+          meta_description: "Deze pagina bevat affiliate links. Met hulp van AI.",
+          h1: input.niche.topic,
+          body_md:
+            "Deze pagina bevat affiliate links.\n\nGeschreven met hulp van AI en geredigeerd door Jeffrey.",
+          schema_jsonld: [],
+          ai_disclosure_jsonld: { "@type": "CreativeWork" },
+        },
+        claims: [
+          {
+            claim_text: "Maalt 30g in 20 seconden.",
+            claim_type: "spec" as const,
+            suggested_sources: [
+              { source_url: "https://brand.nl/spec", excerpt: "30g / 20s volgens fabrikant" },
+            ],
+          },
+          {
+            claim_text: "Beste prijs-kwaliteit.",
+            claim_type: "fact" as const,
+            suggested_sources: [],
+          },
+        ],
+        operator_todos: [],
+        needs_polish_pass: false,
+      },
+      disclosuresAmended: false,
+      agentRunId: `run-${input.page.kind}`,
+      costEur: 0.01,
+    }));
+    const { db, inserts } = makeFakeDb({ niche: NICHE, tenant: TENANT, products: PRODUCTS });
+
+    const result = await runTestPageDraftJob({
+      db,
+      runtime: {} as Parameters<typeof runTestPageDraftJob>[0]["runtime"],
+      nicheId: NICHE.id,
+      planner: () => PLAN,
+    });
+
+    // Two claims per page × 3 pages.
+    expect(result.drafted.every((d) => d.claimsPersisted === 2)).toBe(true);
+    const claimInserts = inserts.filter((i) => i.table === "claims");
+    const sourceInserts = inserts.filter((i) => i.table === "claim_sources");
+    expect(claimInserts).toHaveLength(3); // one batch insert per page
+    expect(sourceInserts).toHaveLength(3); // only the sourced claim contributes a source
+
+    const firstClaims = claimInserts[0]?.values as Array<{ claimText: string; isSourced: boolean }>;
+    expect(firstClaims).toHaveLength(2);
+    expect(firstClaims[0]).toMatchObject({ isSourced: true });
+    expect(firstClaims[1]).toMatchObject({ isSourced: false });
   });
 
   it("rejects plans with fewer than 3 or more than 5 items", async () => {
