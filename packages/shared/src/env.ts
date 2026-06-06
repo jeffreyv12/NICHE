@@ -77,6 +77,18 @@ export const envSchema = z.object({
   IMPACT_ACCOUNT_SID: optionalNonEmpty,
   IMPACT_AUTH_TOKEN: optionalNonEmpty,
 
+  // Conversion webhooks (Phase 3.2) — the {token} path segment per network.
+  // A postback for a network with no configured token is rejected (401).
+  // *_SIGNING_SECRET enables HMAC body verification where the network supports
+  // it; Digistore reuses DIGISTORE_IPN_PASSPHRASE.
+  WEBHOOK_BOL_TOKEN: optionalNonEmpty,
+  WEBHOOK_AWIN_TOKEN: optionalNonEmpty,
+  WEBHOOK_AWIN_SIGNING_SECRET: optionalNonEmpty,
+  WEBHOOK_DAISYCON_TOKEN: optionalNonEmpty,
+  WEBHOOK_DIGISTORE_TOKEN: optionalNonEmpty,
+  WEBHOOK_IMPACT_TOKEN: optionalNonEmpty,
+  WEBHOOK_IMPACT_SIGNING_SECRET: optionalNonEmpty,
+
   // Cloudflare
   CLOUDFLARE_ACCOUNT_ID: optionalNonEmpty,
   CLOUDFLARE_API_TOKEN: optionalNonEmpty,
