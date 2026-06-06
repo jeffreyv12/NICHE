@@ -118,6 +118,70 @@ export async function rejectPageAction(pageId: string): Promise<PageActionResult
 }
 
 // ---------------------------------------------------------------------------
+// Phase 4.2.4 / 4.3.3 — attach a source to an unsourced claim.
+//
+// The operator resolves a Claim-Verifier block by attaching either a web
+// citation or a logged first-party test. Both clear the block (the verifier
+// re-checks live), so the page can then be approved.
+// ---------------------------------------------------------------------------
+
+async function revalidateNicheForClaim(claimId: string): Promise<void> {
+  const supabase = getServiceRoleSupabase();
+  const { data: claim } = await supabase
+    .from("claims")
+    .select("page_id")
+    .eq("id", claimId)
+    .maybeSingle();
+  if (!claim?.page_id) return;
+  const { data: page } = await supabase
+    .from("pages")
+    .select("niche_id")
+    .eq("id", claim.page_id)
+    .maybeSingle();
+  if (page?.niche_id) revalidatePath(`/admin/niches/${page.niche_id}`);
+}
+
+export async function attachClaimUrlSourceAction(
+  claimId: string,
+  sourceUrl: string,
+  excerpt: string,
+): Promise<PageActionResult> {
+  await requireAdmin();
+  const url = sourceUrl.trim();
+  const ex = excerpt.trim();
+  if (!/^https?:\/\/\S+/i.test(url)) return { ok: false, error: "Geldige http(s)-URL vereist" };
+  if (!ex) return { ok: false, error: "Excerpt vereist" };
+
+  const supabase = getServiceRoleSupabase();
+  const { error } = await supabase
+    .from("claim_sources")
+    .insert({ claim_id: claimId, source_kind: "web", source_url: url, excerpt: ex });
+  if (error) return { ok: false, error: error.message };
+  await supabase.from("claims").update({ is_sourced: true }).eq("id", claimId);
+  await revalidateNicheForClaim(claimId);
+  return { ok: true };
+}
+
+export async function attachClaimTestSourceAction(
+  claimId: string,
+  firstPartyTestId: string,
+): Promise<PageActionResult> {
+  await requireAdmin();
+  if (!firstPartyTestId) return { ok: false, error: "Kies een test" };
+
+  const supabase = getServiceRoleSupabase();
+  const { error } = await supabase.from("claim_sources").insert({
+    claim_id: claimId,
+    source_kind: "first_party_test",
+    first_party_test_id: firstPartyTestId,
+  });
+  if (error) return { ok: false, error: error.message };
+  await supabase.from("claims").update({ is_sourced: true }).eq("id", claimId);
+  await revalidateNicheForClaim(claimId);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // Phase 3.3 — confirm a Validation Agent recommendation.
 //
 // The agent writes a recommendation to validation_evaluations; it does NOT

@@ -27,6 +27,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             NicheFinder Admin
           </Link>
           <Link href="/admin/niches">Niches</Link>
+          <Link href="/admin/tests">Tests</Link>
           <Link href="/admin/content">Content</Link>
           <Link href="/admin/promotions">Promotions</Link>
           <Link href="/admin/costs">Costs</Link>

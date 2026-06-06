@@ -10,7 +10,18 @@ import { notFound } from "next/navigation";
 import { requireAdmin } from "../../../../../lib/auth";
 import { loadClaimsByPage } from "../../../../../lib/claims";
 import { getServiceRoleSupabase } from "../../../../../lib/supabase";
-import { approvePageAction, confirmValidationAction, rejectPageAction } from "./actions";
+import {
+  approvePageAction,
+  attachClaimTestSourceAction,
+  attachClaimUrlSourceAction,
+  confirmValidationAction,
+  rejectPageAction,
+} from "./actions";
+
+interface TestOption {
+  id: string;
+  product_name: string;
+}
 
 type ValidationDecision = "go" | "pivot" | "kill";
 
@@ -74,6 +85,7 @@ async function load(id: string): Promise<{
   pages: PageRow[];
   validation: ValidationEvalRow | null;
   claimChecks: Map<string, ClaimVerificationResult>;
+  tests: TestOption[];
 } | null> {
   const supabase = getServiceRoleSupabase();
 
@@ -126,11 +138,24 @@ async function load(id: string): Promise<{
     claimChecks.set(pid, verifyClaims(claimsByPage.get(pid) ?? []));
   }
 
+  // First-party tests the operator can attach to an unsourced claim (4.3.3).
+  let tests: TestOption[] = [];
+  if (niche.tenant_id) {
+    const { data: testRows } = await supabase
+      .from("first_party_tests")
+      .select("id, product_name")
+      .eq("tenant_id", niche.tenant_id)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    tests = (testRows ?? []) as TestOption[];
+  }
+
   return {
     niche: { ...niche, tenant } as NicheRow,
     pages: pageRows,
     validation: (validation ?? null) as ValidationEvalRow | null,
     claimChecks,
+    tests,
   };
 }
 
@@ -170,7 +195,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
   const { id } = await params;
   const data = await load(id);
   if (!data) notFound();
-  const { niche, pages, validation, claimChecks } = data;
+  const { niche, pages, validation, claimChecks, tests } = data;
 
   return (
     <article>
@@ -310,7 +335,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
                       ) : null}
                     </div>
                   </div>
-                  {canApprove && check ? <ClaimGate check={check} /> : null}
+                  {canApprove && check ? <ClaimGate check={check} tests={tests} /> : null}
                   {p.operator_todos && p.operator_todos.length > 0 ? (
                     <PolishTodos todos={p.operator_todos} />
                   ) : null}
@@ -549,7 +574,7 @@ function PolishTodos({ todos }: { todos: string[] }) {
 
 // Phase 4.2 — Claim Verifier status for one draft page: green when every claim
 // is sourced, red with the blocking claims as "add a source" todos otherwise.
-function ClaimGate({ check }: { check: ClaimVerificationResult }) {
+function ClaimGate({ check, tests }: { check: ClaimVerificationResult; tests: TestOption[] }) {
   if (check.total === 0) {
     return (
       <p style={{ fontSize: "0.75rem", color: "#737373", marginTop: "0.5rem" }}>
@@ -578,20 +603,81 @@ function ClaimGate({ check }: { check: ClaimVerificationResult }) {
         {check.unsourced.length} van {check.total} claims missen een bron — voeg een bron toe
         voordat je goedkeurt:
       </strong>
-      <ul
-        style={{
-          fontSize: "0.75rem",
-          color: "#7f1d1d",
-          margin: "0.375rem 0 0",
-          paddingLeft: "1.25rem",
-        }}
-      >
+      <ul style={{ listStyle: "none", margin: "0.5rem 0 0", padding: 0 }}>
         {check.unsourced.map((u) => (
-          <li key={u.claimId}>
-            {u.claimText} <span style={{ color: "#9ca3af" }}>({u.claimType})</span>
+          <li key={u.claimId} style={{ marginBottom: "0.5rem" }}>
+            <div style={{ fontSize: "0.75rem", color: "#7f1d1d" }}>
+              {u.claimText} <span style={{ color: "#9ca3af" }}>({u.claimType})</span>
+            </div>
+            <ClaimSourceAttach claimId={u.claimId} tests={tests} />
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const attachField = {
+  padding: "0.25rem 0.375rem",
+  border: "1px solid #d4d4d4",
+  borderRadius: "0.25rem",
+  fontSize: "0.75rem",
+} as const;
+const attachBtn = {
+  fontSize: "0.75rem",
+  padding: "0.25rem 0.5rem",
+  borderRadius: "0.25rem",
+  border: "1px solid #2563eb",
+  background: "#2563eb",
+  color: "white",
+  cursor: "pointer",
+} as const;
+
+// Inline per-claim source-attach widget: a web URL+excerpt, or a logged
+// first-party test. Both clear the Claim-Verifier block (4.2.4 / 4.3.3).
+function ClaimSourceAttach({ claimId, tests }: { claimId: string; tests: TestOption[] }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.25rem" }}>
+      <form
+        action={async (fd) => {
+          "use server";
+          await attachClaimUrlSourceAction(
+            claimId,
+            String(fd.get("url") ?? ""),
+            String(fd.get("excerpt") ?? ""),
+          );
+        }}
+        style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap", alignItems: "center" }}
+      >
+        <input name="url" placeholder="https://bron…" style={{ ...attachField, width: "12rem" }} />
+        <input name="excerpt" placeholder="citaat" style={{ ...attachField, width: "9rem" }} />
+        <button type="submit" style={attachBtn}>
+          + URL-bron
+        </button>
+      </form>
+      {tests.length > 0 ? (
+        <form
+          action={async (fd) => {
+            "use server";
+            await attachClaimTestSourceAction(claimId, String(fd.get("fpt") ?? ""));
+          }}
+          style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}
+        >
+          <select name="fpt" style={attachField} defaultValue="">
+            <option value="" disabled>
+              eigen test…
+            </option>
+            {tests.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.product_name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" style={attachBtn}>
+            + Test
+          </button>
+        </form>
+      ) : null}
     </div>
   );
 }
