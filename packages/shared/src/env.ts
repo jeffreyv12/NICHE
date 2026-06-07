@@ -126,6 +126,9 @@ export const envSchema = z.object({
   SLACK_WEBHOOK_URL: optionalUrl,
   DISCORD_WEBHOOK_URL: optionalUrl,
 
+  // IndexNow (Phase 4.4.3) — Bing URL indexing ping. Optional; no-op if unset.
+  BING_INDEXNOW_KEY: optionalNonEmpty,
+
   // Scraper infra
   SCRAPER_USER_AGENT: z.string().default("NicheFinder/1.0 (+https://example.com/about-bot)"),
   SCRAPER_RATE_LIMIT_PER_HOST_RPS: positiveInt.default(1),

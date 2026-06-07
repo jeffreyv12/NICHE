@@ -12,6 +12,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "../../../../../lib/auth";
 import { pageTag, tenantTag } from "../../../../../lib/cache";
 import { loadPageClaims } from "../../../../../lib/claims";
+import { buildCanonicalUrl, pingIndexNow } from "../../../../../lib/indexnow";
 import { getServiceRoleSupabase } from "../../../../../lib/supabase";
 
 export interface PageActionResult {
@@ -46,17 +47,18 @@ async function loadPageForAdmin(pageId: string): Promise<{
 }
 
 /** Bust the public ISR cache for a page once it becomes (or stops being)
- *  publicly visible. Resolves the tenant slug from the page's tenant. */
-async function revalidatePublicPage(tenantId: string, fullPath: string): Promise<void> {
+ *  publicly visible. Resolves and returns the tenant slug. */
+async function revalidatePublicPage(tenantId: string, fullPath: string): Promise<string | null> {
   const supabase = getServiceRoleSupabase();
   const { data: tenant } = await supabase
     .from("tenants")
     .select("slug")
     .eq("id", tenantId)
     .maybeSingle();
-  if (!tenant?.slug) return;
+  if (!tenant?.slug) return null;
   revalidateTag(pageTag(tenant.slug, fullPath));
   revalidateTag(tenantTag(tenant.slug));
+  return tenant.slug;
 }
 
 /**
@@ -98,8 +100,14 @@ export async function approvePageAction(pageId: string): Promise<PageActionResul
 
   // The page is now publicly visible — bust its ISR cache so it appears within
   // seconds rather than waiting out the 24h window (Phase 4.4.2).
-  await revalidatePublicPage(page.tenantId, page.fullPath);
+  const tenantSlug = await revalidatePublicPage(page.tenantId, page.fullPath);
   if (page.nicheId) revalidatePath(`/admin/niches/${page.nicheId}`);
+
+  // Phase 4.4.3: tell Bing about the new URL (fire-and-forget; never blocks).
+  if (tenantSlug) {
+    void pingIndexNow(buildCanonicalUrl(tenantSlug, page.fullPath));
+  }
+
   return { ok: true };
 }
 
