@@ -161,4 +161,48 @@ describe("runOrchestratorJob", () => {
     const callArg = mockedRun.mock.calls[0]?.[1];
     expect(callArg?.week_of).toBe("2026-06-09");
   });
+
+  it("parses kills_recommended with optional redirect_to_niche_slug (Phase 6.1.5)", () => {
+    const withRedirect = orchestratorAgent.OrchestratorOutputSchema.parse({
+      week_of: "2026-06-02",
+      headline: "Kill kandidaat gevonden.",
+      portfolio_state: {
+        candidate_count: 2,
+        validating: 0,
+        building: 1,
+        mature: 1,
+        promoted: 0,
+        killed_lifetime: 1,
+        kill_rate_12m: 0.5,
+        promotion_rate_12m: 0,
+      },
+      spend: {
+        claude_mtd_eur: 50,
+        claude_budget_eur: 200,
+        claude_pct_used: 0.25,
+        infra_mtd_eur: 10,
+        paid_traffic_mtd_eur: 0,
+      },
+      kills_recommended: [
+        {
+          niche_slug: "goedkope-laptops",
+          reason: "low_revenue_month_6",
+          evidence: { revenue_eur: 5 },
+          redirect_to_niche_slug: "beste-laptops",
+        },
+      ],
+      operator_action_items: [],
+    });
+
+    expect(withRedirect.kills_recommended[0]?.redirect_to_niche_slug).toBe("beste-laptops");
+
+    // Omitting the field is equally valid.
+    const withoutRedirect = orchestratorAgent.OrchestratorOutputSchema.parse({
+      ...withRedirect,
+      kills_recommended: [
+        { niche_slug: "goedkope-laptops", reason: "low_revenue_month_6", evidence: {} },
+      ],
+    });
+    expect(withoutRedirect.kills_recommended[0]?.redirect_to_niche_slug).toBeUndefined();
+  });
 });

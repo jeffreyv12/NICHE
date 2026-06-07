@@ -88,6 +88,9 @@ export const OrchestratorOutputSchema = z.object({
         niche_slug: z.string(),
         reason: z.string(),
         evidence: z.unknown(),
+        /** Phase 6.1.5 — slug of an active niche that can absorb this niche's
+         *  audience / content after killing. Omit when no good candidate exists. */
+        redirect_to_niche_slug: z.string().optional(),
       }),
     )
     .default([]),
