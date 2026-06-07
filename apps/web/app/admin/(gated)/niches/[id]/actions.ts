@@ -182,6 +182,108 @@ export async function attachClaimTestSourceAction(
 }
 
 // ---------------------------------------------------------------------------
+// Phase 6.2 — confirm or dismiss an automated kill recommendation.
+//
+// The scan writes an open kill_flags row; the operator decides here (CLAUDE.md
+// #2 + #13). Confirm → niche killed + kills audit row; dismiss → flag closed,
+// niche untouched.
+// ---------------------------------------------------------------------------
+
+const KILL_REASON_ENUM = new Set([
+  "low_revenue_month_6",
+  "low_traffic_month_6",
+  "manual_operator_kill",
+  "kill_list_match",
+  "duplicate_topic",
+  "google_penalty",
+  "other",
+]);
+
+export async function confirmKillFlagAction(flagId: string): Promise<PageActionResult> {
+  const admin = await requireAdmin();
+  if (!flagId) return { ok: false, error: "missing flag id" };
+
+  const supabase = getServiceRoleSupabase();
+  const { data: flag } = await supabase
+    .from("kill_flags")
+    .select("id, niche_id, reasons, confirmed_at, dismissed_at")
+    .eq("id", flagId)
+    .maybeSingle();
+  if (!flag) return { ok: false, error: "flag not found" };
+  if (flag.confirmed_at || flag.dismissed_at) return { ok: false, error: "already decided" };
+
+  const { data: niche } = await supabase
+    .from("niches")
+    .select("id, state, notes")
+    .eq("id", flag.niche_id)
+    .maybeSingle();
+  if (!niche) return { ok: false, error: "niche not found" };
+
+  const reasons: string[] = Array.isArray(flag.reasons) ? flag.reasons : [];
+  const reason = reasons.find((r) => KILL_REASON_ENUM.has(r)) ?? "manual_operator_kill";
+  const now = new Date().toISOString();
+  const noteLine = `[kill ${reason} · ${now} · ${admin.email}] auto-flag bevestigd`;
+
+  const { error: nicheErr } = await supabase
+    .from("niches")
+    .update({
+      state: "killed",
+      killed_at: now,
+      kill_reason: reason,
+      notes: niche.notes ? `${niche.notes}\n${noteLine}` : noteLine,
+    })
+    .eq("id", niche.id);
+  if (nicheErr) return { ok: false, error: nicheErr.message };
+
+  const { data: kill } = await supabase
+    .from("kills")
+    .insert({
+      niche_id: niche.id,
+      reason,
+      details: `auto kill-flag: ${reasons.join(", ")}`,
+      decided_by: admin.email,
+    })
+    .select("id")
+    .maybeSingle();
+
+  const { error: flagErr } = await supabase
+    .from("kill_flags")
+    .update({
+      confirmed_at: now,
+      confirmed_by_email: admin.email,
+      resulting_kill_id: kill?.id ?? null,
+    })
+    .eq("id", flagId);
+  if (flagErr) return { ok: false, error: flagErr.message };
+
+  revalidatePath(`/admin/niches/${niche.id}`);
+  return { ok: true };
+}
+
+export async function dismissKillFlagAction(flagId: string): Promise<PageActionResult> {
+  const admin = await requireAdmin();
+  if (!flagId) return { ok: false, error: "missing flag id" };
+
+  const supabase = getServiceRoleSupabase();
+  const { data: flag } = await supabase
+    .from("kill_flags")
+    .select("id, niche_id, confirmed_at, dismissed_at")
+    .eq("id", flagId)
+    .maybeSingle();
+  if (!flag) return { ok: false, error: "flag not found" };
+  if (flag.confirmed_at || flag.dismissed_at) return { ok: false, error: "already decided" };
+
+  const { error } = await supabase
+    .from("kill_flags")
+    .update({ dismissed_at: new Date().toISOString(), dismissed_by_email: admin.email })
+    .eq("id", flagId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/admin/niches/${flag.niche_id}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // Phase 3.3 — confirm a Validation Agent recommendation.
 //
 // The agent writes a recommendation to validation_evaluations; it does NOT

@@ -542,6 +542,33 @@ export const kills = pgTable("kills", {
   decidedBy: text("decided_by"),
 });
 
+// KILL FLAGS (Phase 6.2) — auto-flag recommendations; operator confirms/dismisses.
+export const killFlags = pgTable(
+  "kill_flags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nicheId: uuid("niche_id")
+      .notNull()
+      .references(() => niches.id, { onDelete: "cascade" }),
+    flaggedAt: timestamp("flagged_at", { withTimezone: true }).notNull().defaultNow(),
+    reasons: text("reasons").array().notNull(),
+    details: jsonb("details").notNull(),
+    metrics: jsonb("metrics").notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    confirmedByEmail: text("confirmed_by_email"),
+    resultingKillId: uuid("resulting_kill_id").references(() => kills.id),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+    dismissedByEmail: text("dismissed_by_email"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    nicheIdx: index("kill_flags_niche_idx").on(t.nicheId, t.flaggedAt),
+    oneOpenPerNiche: uniqueIndex("kill_flags_one_open_per_niche")
+      .on(t.nicheId)
+      .where(sql`confirmed_at is null and dismissed_at is null`),
+  }),
+);
+
 // COST LEDGER -------------------------------------------------------------
 
 export const costLedger = pgTable(

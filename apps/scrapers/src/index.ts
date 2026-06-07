@@ -63,3 +63,11 @@ export type {
   RunContentPolishJobResult,
   PolishedPage,
 } from "./jobs/content-polish.js";
+export { runKillScanJob, createDefaultKillMetricsAdapter } from "./jobs/killScan.js";
+export type {
+  RunKillScanJobOptions,
+  RunKillScanJobResult,
+  KillScanOutcome,
+  KillMetricsAdapter,
+  NicheKillMetrics,
+} from "./jobs/killScan.js";

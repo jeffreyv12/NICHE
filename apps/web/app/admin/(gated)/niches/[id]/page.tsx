@@ -14,13 +14,22 @@ import {
   approvePageAction,
   attachClaimTestSourceAction,
   attachClaimUrlSourceAction,
+  confirmKillFlagAction,
   confirmValidationAction,
+  dismissKillFlagAction,
   rejectPageAction,
 } from "./actions";
 
 interface TestOption {
   id: string;
   product_name: string;
+}
+
+interface KillFlagRow {
+  id: string;
+  reasons: string[];
+  details: Array<{ reason: string; detail: string }> | null;
+  flagged_at: string;
 }
 
 type ValidationDecision = "go" | "pivot" | "kill";
@@ -86,6 +95,7 @@ async function load(id: string): Promise<{
   validation: ValidationEvalRow | null;
   claimChecks: Map<string, ClaimVerificationResult>;
   tests: TestOption[];
+  killFlag: KillFlagRow | null;
 } | null> {
   const supabase = getServiceRoleSupabase();
 
@@ -150,12 +160,24 @@ async function load(id: string): Promise<{
     tests = (testRows ?? []) as TestOption[];
   }
 
+  // Open kill recommendation (Phase 6.2), if any.
+  const { data: killFlag } = await supabase
+    .from("kill_flags")
+    .select("id, reasons, details, flagged_at")
+    .eq("niche_id", id)
+    .is("confirmed_at", null)
+    .is("dismissed_at", null)
+    .order("flagged_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return {
     niche: { ...niche, tenant } as NicheRow,
     pages: pageRows,
     validation: (validation ?? null) as ValidationEvalRow | null,
     claimChecks,
     tests,
+    killFlag: (killFlag ?? null) as KillFlagRow | null,
   };
 }
 
@@ -195,7 +217,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
   const { id } = await params;
   const data = await load(id);
   if (!data) notFound();
-  const { niche, pages, validation, claimChecks, tests } = data;
+  const { niche, pages, validation, claimChecks, tests, killFlag } = data;
 
   return (
     <article>
@@ -215,6 +237,8 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
           ) : null}
         </p>
       </header>
+
+      {killFlag ? <KillFlagBanner flag={killFlag} nicheState={niche.state} /> : null}
 
       <section style={{ marginBottom: "1.5rem" }}>
         <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Tijdlijn</h2>
@@ -539,6 +563,78 @@ const btnApproveDisabled = {
   cursor: "not-allowed",
 } as const;
 const btnReject = { ...btnBase, background: "white", color: "#ef4444", borderColor: "#ef4444" };
+
+// Phase 6.2 — open kill recommendation. The operator confirms (→ niche killed)
+// or dismisses; the scan only ever recommends (CLAUDE.md #2 + #13).
+function KillFlagBanner({ flag, nicheState }: { flag: KillFlagRow; nicheState: string }) {
+  const decidable = nicheState !== "killed" && nicheState !== "archived";
+  return (
+    <section
+      style={{
+        marginBottom: "1.5rem",
+        background: "#fef2f2",
+        border: "1px solid #fca5a5",
+        borderRadius: "0.5rem",
+        padding: "0.875rem 1rem",
+      }}
+    >
+      <strong style={{ color: "#991b1b" }}>Kill-aanbeveling ({flag.reasons.length})</strong>
+      <ul
+        style={{
+          fontSize: "0.8125rem",
+          color: "#7f1d1d",
+          margin: "0.5rem 0",
+          paddingLeft: "1.25rem",
+        }}
+      >
+        {(flag.details ?? []).map((d) => (
+          <li key={d.reason}>
+            <strong>{d.reason}</strong> — {d.detail}
+          </li>
+        ))}
+      </ul>
+      {decidable ? (
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <form
+            action={async () => {
+              "use server";
+              await confirmKillFlagAction(flag.id);
+            }}
+          >
+            <button
+              type="submit"
+              style={{ ...attachBtn, background: "#ef4444", borderColor: "#dc2626" }}
+            >
+              Bevestig kill
+            </button>
+          </form>
+          <form
+            action={async () => {
+              "use server";
+              await dismissKillFlagAction(flag.id);
+            }}
+          >
+            <button
+              type="submit"
+              style={{
+                ...attachBtn,
+                background: "white",
+                color: "#525252",
+                borderColor: "#d4d4d4",
+              }}
+            >
+              Negeren
+            </button>
+          </form>
+        </div>
+      ) : (
+        <p style={{ fontSize: "0.8125rem", color: "#737373", margin: 0 }}>
+          Niche staat al in <code>{nicheState}</code>.
+        </p>
+      )}
+    </section>
+  );
+}
 
 // Phase 4.1 — operator todos from the Content Agent polish pass (e.g. a
 // "[BLOCKER] disclosure missing" advisory). Amber, distinct from the claim gate.
