@@ -89,10 +89,18 @@ interface ValidationEvalRow {
   resulting_state: string | null;
 }
 
+interface PromotionEvalRow {
+  id: string;
+  evaluated_at: string;
+  result: string;
+  recommendation: string | null;
+}
+
 async function load(id: string): Promise<{
   niche: NicheRow;
   pages: PageRow[];
   validation: ValidationEvalRow | null;
+  promotion: PromotionEvalRow | null;
   claimChecks: Map<string, ClaimVerificationResult>;
   tests: TestOption[];
   killFlag: KillFlagRow | null;
@@ -171,10 +179,20 @@ async function load(id: string): Promise<{
     .limit(1)
     .maybeSingle();
 
+  // Latest promotion evaluation (Phase 5.4.4): show "Ready to promote" card.
+  const { data: promotion } = await supabase
+    .from("promotion_evaluations")
+    .select("id, evaluated_at, result, recommendation")
+    .eq("niche_id", id)
+    .order("evaluated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return {
     niche: { ...niche, tenant } as NicheRow,
     pages: pageRows,
     validation: (validation ?? null) as ValidationEvalRow | null,
+    promotion: (promotion ?? null) as PromotionEvalRow | null,
     claimChecks,
     tests,
     killFlag: (killFlag ?? null) as KillFlagRow | null,
@@ -217,7 +235,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
   const { id } = await params;
   const data = await load(id);
   if (!data) notFound();
-  const { niche, pages, validation, claimChecks, tests, killFlag } = data;
+  const { niche, pages, validation, promotion, claimChecks, tests, killFlag } = data;
 
   return (
     <article>
@@ -269,6 +287,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
       </section>
 
       <ValidationSection niche={niche} validation={validation} />
+      <PromotionSection promotion={promotion} />
 
       <section>
         <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Test-pagina's ({pages.length})</h2>
@@ -563,6 +582,68 @@ const btnApproveDisabled = {
   cursor: "not-allowed",
 } as const;
 const btnReject = { ...btnBase, background: "white", color: "#ef4444", borderColor: "#ef4444" };
+
+// Phase 5.4.4 — Promotion evaluation result card.
+// Shows when the Promotion Agent has evaluated the niche. When result='ready',
+// the card is highlighted green to prompt operator action (CLAUDE.md #1 + #10).
+function PromotionSection({ promotion }: { promotion: PromotionEvalRow | null }) {
+  if (!promotion) return null;
+
+  const isReady = promotion.result === "ready";
+  const borderColor = isReady ? "#059669" : "#e5e5e5";
+  const bg = isReady ? "#f0fdf4" : "#fafafa";
+
+  const RESULT_LABELS: Record<string, string> = {
+    ready: "✅ Klaar voor promotie",
+    not_ready: "Nog niet klaar",
+    blocked_by_update_window: "Geblokkeerd — algoritme-update actief",
+    blocked_by_single_source: "Geblokkeerd — te weinig affiliate-bronnen",
+  };
+
+  return (
+    <section
+      style={{
+        border: `1px solid ${borderColor}`,
+        borderRadius: "0.5rem",
+        padding: "1.25rem 1.5rem",
+        background: bg,
+        marginBottom: "1.5rem",
+      }}
+    >
+      <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Promotie-evaluatie</h2>
+      <p style={{ fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+        <strong>{RESULT_LABELS[promotion.result] ?? promotion.result}</strong>
+        {" — "}
+        <span style={{ color: "#737373" }}>
+          {new Date(promotion.evaluated_at).toLocaleDateString("nl-NL", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })}
+        </span>
+      </p>
+      {promotion.recommendation ? (
+        <p style={{ fontSize: "0.8125rem", color: "#525252", margin: 0, whiteSpace: "pre-wrap" }}>
+          {promotion.recommendation}
+        </p>
+      ) : null}
+      {isReady ? (
+        <p
+          style={{
+            marginTop: "0.75rem",
+            fontSize: "0.8125rem",
+            color: "#065f46",
+            fontWeight: 600,
+          }}
+        >
+          Start de promotieprocedure handmatig via <code>promotion-once.js --niche {"{id}"}</code>{" "}
+          op de Hetzner-server nadat u de kandidaatdomeinen heeft gecontroleerd en de kosten heeft
+          goedgekeurd.
+        </p>
+      ) : null}
+    </section>
+  );
+}
 
 // Phase 6.2 — open kill recommendation. The operator confirms (→ niche killed)
 // or dismisses; the scan only ever recommends (CLAUDE.md #2 + #13).

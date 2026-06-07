@@ -80,3 +80,10 @@ export type {
   RunOrchestratorJobResult,
   PortfolioSnapshotAdapter,
 } from "./jobs/orchestrator.js";
+export { runPromotionJob, createStubDomainAdapter } from "./jobs/promotion.js";
+export type {
+  RunPromotionJobOptions,
+  RunPromotionJobResult,
+  PromotionJobNicheResult,
+  CandidateDomainAdapter,
+} from "./jobs/promotion.js";
