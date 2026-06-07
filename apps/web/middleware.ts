@@ -8,7 +8,11 @@
 // per-request cost is negligible after the first hit per cache window.
 
 import { type NextRequest, NextResponse } from "next/server";
-import { getSubfolderTenantForPath, getTenantByHostname } from "./lib/tenants";
+import {
+  getRedirectForSubfolder,
+  getSubfolderTenantForPath,
+  getTenantByHostname,
+} from "./lib/tenants";
 
 // Paths the middleware never touches: Next internals, static, admin (handled
 // by its own auth gate), webhooks (must be reachable without tenant context),
@@ -51,6 +55,21 @@ export async function middleware(request: NextRequest) {
 
   // CASE B: main authority — check first path segment for a subfolder tenant
   if (tenant.kind === "main_authority") {
+    const seg = pathname.split("/").filter(Boolean)[0];
+    const prefix = seg ? `/${seg}` : null;
+
+    // Phase 5.5.3: if the subfolder niche has been promoted to its own domain,
+    // issue a permanent redirect before any rewrite. The redirect target is the
+    // niche's own hostname with the remainder of the path preserved.
+    if (prefix) {
+      const redirect = await getRedirectForSubfolder(prefix);
+      if (redirect) {
+        const remainder = pathname.slice(prefix.length) || "/";
+        const target = `https://${redirect.hostname}${remainder}`;
+        return NextResponse.redirect(target, 308);
+      }
+    }
+
     const sub = await getSubfolderTenantForPath(pathname);
     if (sub) {
       const url = request.nextUrl.clone();

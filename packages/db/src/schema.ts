@@ -496,6 +496,33 @@ export const domainRegistrations = pgTable("domain_registrations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// PROMOTION MIGRATIONS ----------------------------------------------------
+// Phase 5.5. Tracks progress through the 13-step migration procedure.
+// One row per promotion run; steps 0–12 match docs/PROMOTION_GATE.md.
+
+export const promotionMigrations = pgTable(
+  "promotion_migrations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nicheId: uuid("niche_id").references(() => niches.id, { onDelete: "set null" }),
+    domainRegistrationId: uuid("domain_registration_id").references(() => domainRegistrations.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").notNull().default("pending"),
+    currentStep: integer("current_step").notNull().default(0),
+    stepLogs: jsonb("step_logs").notNull().default([]),
+    operatorEmail: text("operator_email"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    failedStep: integer("failed_step"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    nicheIdx: index("promotion_migrations_niche_idx").on(t.nicheId, t.startedAt),
+  }),
+);
+
 // AGENT RUNS --------------------------------------------------------------
 
 export const agentRuns = pgTable(

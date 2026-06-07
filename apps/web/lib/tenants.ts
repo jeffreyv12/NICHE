@@ -66,6 +66,62 @@ export async function getTenantByHostname(hostname: string): Promise<Tenant | nu
   return tenant;
 }
 
+export interface SubfolderRedirect {
+  /** The promoted domain hostname to redirect to (e.g. "staandbureau.nl"). */
+  hostname: string;
+}
+
+/**
+ * If the niche under this subfolder has been promoted to its own domain,
+ * return the redirect target hostname so the middleware can issue a 301.
+ */
+export async function getRedirectForSubfolder(
+  pathPrefix: string,
+): Promise<SubfolderRedirect | null> {
+  const cacheKeyRedirect = `tenant:redirect:${pathPrefix}`;
+  const cached = await kvGet<SubfolderRedirect | { __miss: true }>(cacheKeyRedirect);
+  if (cached) return "__miss" in cached ? null : cached;
+
+  const supabase = getServiceRoleSupabase();
+
+  // Find the tenant for this subfolder path, then check if it has an active
+  // promoted domain registration.
+  const { data, error } = await supabase
+    .from("tenants")
+    .select(
+      `id, slug, niches!inner(
+        id,
+        domain_registrations!inner(hostname, status)
+      )`,
+    )
+    .eq("path_prefix", pathPrefix)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error || !data) {
+    await kvSet(cacheKeyRedirect, { __miss: true }, TTL_SECONDS);
+    return null;
+  }
+
+  const niche = (
+    data.niches as unknown as Array<{
+      id: string;
+      domain_registrations: Array<{ hostname: string; status: string }>;
+    }>
+  )[0];
+
+  const activeDr = niche?.domain_registrations?.find((dr) => dr.status === "redirects_active");
+
+  if (!activeDr) {
+    await kvSet(cacheKeyRedirect, { __miss: true }, TTL_SECONDS);
+    return null;
+  }
+
+  const redirect: SubfolderRedirect = { hostname: activeDr.hostname };
+  await kvSet(cacheKeyRedirect, redirect, TTL_SECONDS);
+  return redirect;
+}
+
 /**
  * For a main-authority tenant, find the subfolder tenant whose path_prefix
  * matches the start of the request path. Returns null if none.

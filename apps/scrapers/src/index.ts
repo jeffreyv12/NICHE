@@ -87,3 +87,32 @@ export type {
   PromotionJobNicheResult,
   CandidateDomainAdapter,
 } from "./jobs/promotion.js";
+export { runMigration, STEP_NAMES } from "./jobs/migration.js";
+export type {
+  RunMigrationOptions,
+  RunMigrationResult,
+  MigrationAdapters,
+  CloudflareAdapter,
+  TransipAdapter,
+  VercelAdapter,
+} from "./jobs/migration.js";
+export { CloudflareClient, createCloudflareClient } from "./registrars/cloudflare/client.js";
+export type {
+  CloudflareClientOptions,
+  DomainAvailability,
+  RegisteredDomain,
+  DnsZone,
+  DnsRecord,
+} from "./registrars/cloudflare/client.js";
+export { TransipClient, createTransipClient } from "./registrars/transip/client.js";
+export type {
+  TransipClientOptions,
+  TransipDomainAvailability,
+  TransipWhoisResult,
+} from "./registrars/transip/client.js";
+export { VercelClient, createVercelClient } from "./registrars/vercel/client.js";
+export type {
+  VercelClientOptions,
+  VercelDomainAttachment,
+  VercelSslStatus,
+} from "./registrars/vercel/client.js";

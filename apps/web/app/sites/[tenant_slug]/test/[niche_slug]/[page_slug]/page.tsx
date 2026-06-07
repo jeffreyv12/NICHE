@@ -37,6 +37,8 @@ interface PageRow {
   author_name: string;
   state: string;
   full_path: string;
+  tenant_canonical_hostname: string | null;
+  tenant_hreflang_active: boolean;
 }
 
 const VISIBLE_STATES = new Set(["approved", "published"]);
@@ -48,11 +50,13 @@ async function loadPageUncached(params: RouteParams): Promise<PageRow | null> {
   // though full_path includes the niche slug).
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("id")
+    .select("id, config")
     .eq("slug", params.tenant_slug)
     .eq("is_active", true)
     .maybeSingle();
   if (!tenant) return null;
+
+  const tenantConfig = (tenant.config ?? {}) as Record<string, unknown>;
 
   const fullPath = `/test/${params.niche_slug}/${params.page_slug}`;
   const { data, error } = await supabase
@@ -65,7 +69,11 @@ async function loadPageUncached(params: RouteParams): Promise<PageRow | null> {
     .maybeSingle();
 
   if (error || !data) return null;
-  return data as PageRow;
+  return {
+    ...(data as Omit<PageRow, "tenant_canonical_hostname" | "tenant_hreflang_active">),
+    tenant_canonical_hostname: (tenantConfig.canonicalHostname as string) ?? null,
+    tenant_hreflang_active: (tenantConfig.hreflangActive as boolean) ?? false,
+  };
 }
 
 /** ISR-cached page read, tagged so a publish/edit can invalidate it on demand. */
@@ -89,12 +97,31 @@ export async function generateMetadata({
   const resolved = await params;
   const page = await loadPage(resolved);
   if (!page || !VISIBLE_STATES.has(page.state)) return { title: "Niet gevonden" };
+
+  const canonicalBase = page.tenant_canonical_hostname
+    ? `https://${page.tenant_canonical_hostname}`
+    : null;
+  const canonicalUrl = canonicalBase ? `${canonicalBase}${page.full_path}` : undefined;
+
+  // Phase 5.5.4 — hreflang: emit nl-NL + nl-BE alternates when the niche has
+  // been promoted to its own domain and hreflangActive=true in tenant config.
+  const alternates: Metadata["alternates"] = canonicalUrl ? { canonical: canonicalUrl } : undefined;
+  if (canonicalBase && page.tenant_hreflang_active) {
+    const url = `${canonicalBase}${page.full_path}`;
+    (alternates as NonNullable<Metadata["alternates"]>).languages = {
+      "nl-NL": url,
+      "nl-BE": url,
+      "x-default": url,
+    };
+  }
+
   return {
     title: page.title,
     description: page.meta_description ?? undefined,
     // Test pages must not bleed into Google before they're real (CLAUDE.md
     // doesn't ban it, but indexing a /test/ URL is operationally noisy).
     robots: { index: false, follow: true },
+    alternates,
   };
 }
 
