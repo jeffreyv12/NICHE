@@ -22,7 +22,7 @@ import {
 } from "../index.js";
 
 async function pingIndexNow(sitemapUrl: string): Promise<void> {
-  const key = process.env.INDEXNOW_API_KEY;
+  const key = process.env.BING_INDEXNOW_KEY;
   if (!key) return;
   try {
     await fetch(`https://www.bing.com/indexnow?url=${encodeURIComponent(sitemapUrl)}&key=${key}`);
