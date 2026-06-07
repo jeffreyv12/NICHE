@@ -1,7 +1,9 @@
 // Per-tenant layout. Reads the tenant config (brand colours, locale) and
 // injects CSS variables + lang attr.
+// Phase 6.4.4: Klaro! CMP loaded per-tenant with a base config.
 
 import { notFound } from "next/navigation";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import { AffiliateDisclosure } from "../../../components/AffiliateDisclosure";
 import { getServiceRoleSupabase } from "../../../lib/supabase";
@@ -61,8 +63,17 @@ export default async function TenantLayout({
   if (brand.backgroundColor) cssVars["--brand-bg"] = brand.backgroundColor;
   if (brand.textColor) cssVars["--brand-text"] = brand.textColor;
 
+  // Klaro config must be defined before klaro.js is loaded. We use an inline
+  // script + afterInteractive strategy so it runs client-side only.
+  const klaroConfig = buildKlaroConfig(lang);
+
   return (
     <div lang={lang} style={cssVars}>
+      {/* Klaro CMP — GDPR/ePrivacy consent (Phase 6.4.4) */}
+      <Script id="klaro-config" strategy="beforeInteractive">
+        {`window.klaroConfig = ${JSON.stringify(klaroConfig)};`}
+      </Script>
+      <Script src="https://cdn.kiprotect.com/klaro/latest/klaro.js" strategy="afterInteractive" />
       <AffiliateDisclosure
         textNl={tenant.config?.affiliate?.disclosureText?.nl}
         textEn={tenant.config?.affiliate?.disclosureText?.en}
@@ -84,4 +95,66 @@ export default async function TenantLayout({
       </footer>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Klaro! base config (self-hosted, configurable per tenant via tenant.config in
+// a later iteration). We only load Plausible (cookieless, no consent needed) so
+// the consent dialog only fires when optional services are added.
+// ---------------------------------------------------------------------------
+
+function buildKlaroConfig(lang: string): object {
+  const isNl = lang.startsWith("nl");
+  return {
+    version: 1,
+    elementID: "klaro",
+    storageMethod: "localStorage",
+    storageName: "klaro",
+    cookieExpiresAfterDays: 365,
+    htmlTexts: true,
+    lang: isNl ? "nl" : "en",
+    translations: {
+      nl: {
+        consentModal: {
+          title: "Cookievoorkeuren",
+          description:
+            "We gebruiken alleen cookieloze statistieken (Plausible). Er worden geen tracking-cookies geplaatst zonder uw toestemming.",
+        },
+        acceptAll: "Accepteer alles",
+        declineAll: "Weiger alles",
+        close: "Sluiten",
+        save: "Opslaan",
+        purposes: {
+          analytics: "Analyse (anoniem)",
+        },
+      },
+      en: {
+        consentModal: {
+          title: "Cookie preferences",
+          description:
+            "We use cookieless analytics (Plausible). No tracking cookies are set without your consent.",
+        },
+        acceptAll: "Accept all",
+        declineAll: "Decline all",
+        close: "Close",
+        save: "Save",
+        purposes: {
+          analytics: "Analytics (anonymous)",
+        },
+      },
+    },
+    services: [
+      {
+        name: "plausible",
+        title: "Plausible Analytics",
+        description: isNl
+          ? "Cookieloze bezoekersstatistieken. Geen persoonlijke gegevens."
+          : "Cookieless visitor statistics. No personal data collected.",
+        purposes: ["analytics"],
+        // Plausible is cookieless; always allowed, so default=true.
+        default: true,
+        required: true,
+      },
+    ],
+  };
 }

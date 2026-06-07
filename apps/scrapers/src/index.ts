@@ -71,3 +71,12 @@ export type {
   KillMetricsAdapter,
   NicheKillMetrics,
 } from "./jobs/killScan.js";
+export {
+  runOrchestratorJob,
+  createDefaultSnapshotAdapter,
+} from "./jobs/orchestrator.js";
+export type {
+  RunOrchestratorJobOptions,
+  RunOrchestratorJobResult,
+  PortfolioSnapshotAdapter,
+} from "./jobs/orchestrator.js";
