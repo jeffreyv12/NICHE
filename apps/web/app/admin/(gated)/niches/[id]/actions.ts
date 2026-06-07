@@ -264,6 +264,15 @@ export async function confirmKillFlagAction(flagId: string): Promise<PageActionR
     .eq("id", flagId);
   if (flagErr) return { ok: false, error: flagErr.message };
 
+  // Phase 6.2.3 — archive all pages belonging to the killed niche so they 404
+  // on the public site immediately. The middleware rewrite still routes to the
+  // tenant slug, but the page renderer only shows approved/published state.
+  await supabase
+    .from("pages")
+    .update({ state: "archived" })
+    .eq("niche_id", niche.id)
+    .in("state", ["draft", "approved", "published"]);
+
   revalidatePath(`/admin/niches/${niche.id}`);
   return { ok: true };
 }
