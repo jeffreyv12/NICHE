@@ -9,6 +9,14 @@ export * as youtube from "./sources/youtube/index.js";
 export * as wikipedia from "./sources/wikipedia/index.js";
 export * as euipo from "./sources/euipo/index.js";
 
+export { runDiscoveryJob } from "./jobs/discovery.js";
+export type {
+  RunDiscoveryJobOptions,
+  RunDiscoveryJobResult,
+  DiscoverySignal,
+  SignalGatherer,
+  EuipoAdapter,
+} from "./jobs/discovery.js";
 export { runScoringJob } from "./jobs/scoring.js";
 export type { RunScoringJobOptions, RunScoringJobResult } from "./jobs/scoring.js";
 export { runTestPageDraftJob } from "./jobs/test-page-draft.js";
