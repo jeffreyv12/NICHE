@@ -1,0 +1,13 @@
+[Unit]
+Description=NicheFinder Content Polish — nightly Mon/Wed/Fri 01:00 NL
+Documentation=docs/PHASE_PLAN.md Phase 4.1
+
+[Timer]
+# Three nights per week: Mon, Wed, Fri at 01:00 Europe/Amsterdam.
+# Runs after discovery (Sun 02:00) and scoring (Sun 03:30) have had a day.
+OnCalendar=Mon,Wed,Fri *-*-* 01:00:00
+Persistent=true
+Unit=nichefinder-runner@content-polish.service
+
+[Install]
+WantedBy=timers.target

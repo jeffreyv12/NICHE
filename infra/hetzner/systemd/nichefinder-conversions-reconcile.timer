@@ -5,7 +5,7 @@ Documentation=docs/PHASE_PLAN.md Phase 3.2
 [Timer]
 OnCalendar=*-*-* 06:30:00
 Persistent=true
-Unit=nichefinder-runner@conversions-reconcile.service
+Unit=nichefinder-runner@reconciliation.service
 
 [Install]
 WantedBy=timers.target

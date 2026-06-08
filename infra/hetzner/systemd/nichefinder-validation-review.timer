@@ -5,7 +5,7 @@ Documentation=docs/PHASE_PLAN.md Phase 3.3
 [Timer]
 OnCalendar=Fri *-*-* 18:00:00
 Persistent=true
-Unit=nichefinder-runner@validation-review.service
+Unit=nichefinder-runner@validation.service
 
 [Install]
 WantedBy=timers.target

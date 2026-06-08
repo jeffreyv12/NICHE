@@ -9,8 +9,10 @@ User=nichefinder
 Group=nichefinder
 WorkingDirectory=/opt/nichefinder
 EnvironmentFile=/etc/nichefinder/env
-# %i is the instance name passed by the timer (discovery, scoring, ...).
-ExecStart=/usr/bin/node /opt/nichefinder/apps/scrapers/dist/index.js %i
+# %i is the job name passed by the timer (e.g. "discovery", "scoring").
+# Each timer sets Unit=nichefinder-runner@<job-name>.service and the
+# corresponding bin entrypoint is dist/bin/<job-name>-once.js.
+ExecStart=/usr/bin/node /opt/nichefinder/apps/scrapers/dist/bin/%i-once.js
 StandardOutput=journal
 StandardError=journal
 NoNewPrivileges=true
