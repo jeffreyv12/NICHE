@@ -93,6 +93,28 @@ describe("WikipediaClient", () => {
       client.pageviews({ article: "Doesnotexist", start: "20260101", end: "20260108" }),
     ).rejects.toBeInstanceOf(WikipediaError);
   });
+
+  it("topPages returns the articles array for a given day", async () => {
+    let calledUrl = "";
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      calledUrl = typeof input === "string" ? input : (input as Request).url;
+      return jsonResponse(200, {
+        items: [
+          {
+            articles: [
+              { article: "Hardlopen", views: 9000, rank: 1 },
+              { article: "Wielrennen", views: 7500, rank: 2 },
+            ],
+          },
+        ],
+      });
+    });
+    const client = new WikipediaClient({ fetchImpl });
+    const articles = await client.topPages({ project: "nl.wikipedia", date: "20260601" });
+    expect(articles).toHaveLength(2);
+    expect(articles[0]?.article).toBe("Hardlopen");
+    expect(calledUrl).toContain("/metrics/pageviews/top/nl.wikipedia/all-access/2026/06/01");
+  });
 });
 
 describe("EuipoClient", () => {

@@ -49,6 +49,41 @@ export interface PageviewsArgs {
   end: string;
 }
 
+// ---------------------------------------------------------------------------
+// top-pages — most-viewed articles in a day
+// ---------------------------------------------------------------------------
+
+export const topPageItem = z
+  .object({
+    article: z.string(),
+    views: z.number(),
+    rank: z.number().optional(),
+  })
+  .passthrough();
+export type TopPageItem = z.infer<typeof topPageItem>;
+
+export const topPagesResponse = z
+  .object({
+    items: z
+      .array(
+        z.object({
+          articles: z.array(topPageItem).default([]),
+        }),
+      )
+      .default([]),
+  })
+  .passthrough();
+export type TopPagesResponse = z.infer<typeof topPagesResponse>;
+
+export interface TopPagesArgs {
+  /** Wikipedia project, e.g. "nl.wikipedia". Defaults to "nl.wikipedia". */
+  project?: string;
+  /** Access type. Defaults to "all-access". */
+  access?: "all-access" | "desktop" | "mobile-app" | "mobile-web";
+  /** YYYYMMDD date string — the day to fetch. Defaults to yesterday. */
+  date?: string;
+}
+
 export interface WikipediaClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
@@ -61,6 +96,30 @@ export class WikipediaClient {
   constructor(opts: WikipediaClientOptions = {}) {
     this.baseUrl = opts.baseUrl ?? DEFAULT_BASE;
     this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
+
+  /** Top N most-viewed articles for a project+day. Returns up to 1000 articles. */
+  async topPages(args: TopPagesArgs = {}): Promise<TopPageItem[]> {
+    const project = args.project ?? "nl.wikipedia";
+    const access = args.access ?? "all-access";
+    const date = args.date ?? yesterdayString();
+    const [year, month, day] = [date.slice(0, 4), date.slice(4, 6), date.slice(6, 8)];
+    const path = `/metrics/pageviews/top/${project}/${access}/${year}/${month}/${day}`;
+    const url = `${this.baseUrl}${path}`;
+
+    const res = await this.fetchImpl(url, {
+      method: "GET",
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new WikipediaError(res.status, path, text.slice(0, 200));
+    }
+    const parsed = topPagesResponse.safeParse(JSON.parse(text));
+    if (!parsed.success) {
+      throw new WikipediaError(-1, path, parsed.error.message.slice(0, 200));
+    }
+    return parsed.data.items[0]?.articles ?? [];
   }
 
   async pageviews(args: PageviewsArgs): Promise<PageviewsResponse> {
@@ -86,4 +145,17 @@ export class WikipediaClient {
     }
     return parsed.data;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+/** Returns YYYYMMDD for yesterday in UTC — the most recent complete day. */
+function yesterdayString(): string {
+  const d = new Date(Date.now() - 86_400_000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
 }

@@ -122,6 +122,26 @@ function makeDaisyconGatherer(): SignalGatherer | null {
   };
 }
 
+function makeWikipediaGatherer(): SignalGatherer {
+  // No credentials required — public Wikimedia API.
+  return async (): Promise<DiscoverySignal[]> => {
+    const { WikipediaClient } = await import("../sources/wikipedia/index.js");
+    const wiki = new WikipediaClient();
+    const articles = await wiki.topPages({ project: "nl.wikipedia" });
+
+    // Skip meta-pages (Main_Page, Speciale, etc.) and surface the top 40.
+    const interesting = articles
+      .filter((a) => !a.article.includes("Speciale:") && a.article !== "Hoofdpagina")
+      .slice(0, 40);
+
+    return interesting.map((a) => ({
+      source: "wiki_pageviews" as const,
+      summary: `Wikipedia NL trending: ${a.article.replace(/_/g, " ")} — ${a.views} views/dag`,
+      raw: a as Record<string, unknown>,
+    }));
+  };
+}
+
 function makeYouTubeGatherer(): SignalGatherer | null {
   const apiKey = process.env.YOUTUBE_API_KEY ?? process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
@@ -160,6 +180,7 @@ async function main(): Promise<void> {
     makeAwinGatherer(),
     makeDaisyconGatherer(),
     makeYouTubeGatherer(),
+    makeWikipediaGatherer(), // no creds needed
   ];
   const gatherers = gathererCandidates.filter((g): g is SignalGatherer => g !== null);
 
