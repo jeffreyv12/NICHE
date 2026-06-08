@@ -8,6 +8,7 @@ export * as daisycon from "./sources/daisycon/index.js";
 export * as youtube from "./sources/youtube/index.js";
 export * as wikipedia from "./sources/wikipedia/index.js";
 export * as euipo from "./sources/euipo/index.js";
+export * as gsc from "./sources/gsc/index.js";
 
 export { runDiscoveryJob } from "./jobs/discovery.js";
 export type {
@@ -124,3 +125,16 @@ export type {
   VercelDomainAttachment,
   VercelSslStatus,
 } from "./registrars/vercel/client.js";
+export { runBolFeedSyncJob } from "./jobs/bolFeedSync.js";
+export type {
+  RunBolFeedSyncOptions,
+  RunBolFeedSyncResult,
+  BolFeedSyncProductResult,
+} from "./jobs/bolFeedSync.js";
+export { runGscPullJob } from "./jobs/gscPull.js";
+export type {
+  RunGscPullJobOptions,
+  RunGscPullJobResult,
+  GscPullTenantResult,
+  TenantGscConfig,
+} from "./jobs/gscPull.js";
