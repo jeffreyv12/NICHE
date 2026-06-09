@@ -58,6 +58,9 @@ export const envSchema = z.object({
   BOL_PARTNER_CLIENT_SECRET: optionalNonEmpty,
   BOL_SUBID_PREFIX: z.string().max(16).default("nf"),
   BOL_SITE_CODE: z.string().max(32).default("nichefinder"),
+  // Bol product-feed sync tuning (bol-feed-sync-once on Hetzner; ~100 RPM limit).
+  BOL_FEED_SYNC_BATCH_DELAY_MS: positiveInt.default(600),
+  BOL_FEED_SYNC_MAX_PRODUCTS: positiveInt.default(500),
 
   // Awin
   AWIN_API_TOKEN: optionalNonEmpty,
@@ -121,6 +124,8 @@ export const envSchema = z.object({
 
   // GSC
   GSC_SERVICE_ACCOUNT_JSON: optionalNonEmpty,
+  // Days to re-pull each run (GSC data lags ~2 days).
+  GSC_LOOKBACK_DAYS: positiveInt.default(3),
 
   // Notifications
   SLACK_WEBHOOK_URL: optionalUrl,
