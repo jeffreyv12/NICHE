@@ -1,0 +1,33 @@
+# Normalize line endings to LF everywhere.
+#
+# Without this, machines with core.autocrlf=true (Windows default) check files
+# out as CRLF, which trips Biome (biome.json pins lineEnding: "lf") and produces
+# spurious "213 lint errors" locally while CI (Linux, LF) stays green. Pinning
+# eol=lf makes the working tree match the repo blobs on every platform.
+* text=auto eol=lf
+
+# Explicit text types (defensive; covered by text=auto above).
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.mjs  text eol=lf
+*.cjs  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.css  text eol=lf
+*.sql  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Binary assets — never normalize.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.pdf  binary
