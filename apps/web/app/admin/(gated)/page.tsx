@@ -128,7 +128,7 @@ export default async function AdminDashboard() {
 
       {/* Stat cards */}
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
-        <StatCard label="Pending page approvals" value={d.pendingPages} href="/admin/tests" />
+        <StatCard label="Pending page approvals" value={d.pendingPages} href="/admin/content" />
         <StatCard label="Promotion ready" value={d.promotionReady} href="/admin/promotions" />
         <StatCard label="Active migrations" value={d.pendingMigrations} href="/admin/migrations" />
         <StatCard label="Agent runs today" value={d.agentRunsToday} />

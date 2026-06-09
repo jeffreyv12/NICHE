@@ -147,6 +147,9 @@ export const envSchema = z.object({
   FEATURE_PROMPT_CACHE: booleanFromEnv.default("true"),
   FEATURE_FAKE_TIMERS: booleanFromEnv.default("false"),
 
+  // Operator
+  OPERATOR_EMAIL: z.string().email().optional(),
+
   // Admin
   ADMIN_ALLOWED_EMAILS: z
     .string()

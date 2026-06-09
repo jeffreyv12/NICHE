@@ -36,6 +36,11 @@ export interface RunOrchestratorJobOptions {
   discordWebhookUrl?: string;
   /** Claude monthly budget for mechanical budget alerts. */
   claudeBudgetEur?: number;
+  /**
+   * Called when MTD spend crosses 80% of claudeBudgetEur. Injectable so tests
+   * can verify the trigger without real email calls.
+   */
+  onBudgetAlert?: (spentEur: number, budgetEur: number) => Promise<void>;
 }
 
 export interface RunOrchestratorJobResult {
@@ -46,6 +51,10 @@ export interface RunOrchestratorJobResult {
   agentRunId: string;
   costEur: number;
   webhookPosted: boolean;
+  /** MTD Claude spend at the time of the run. */
+  claudeMtdSpendEur: number;
+  /** True if the 80% budget threshold was crossed and onBudgetAlert was called. */
+  budgetAlertSent: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +79,7 @@ export async function runOrchestratorJob(
 
   const adapter = opts.snapshot ?? createDefaultSnapshotAdapter(opts.db, claudeBudgetEur);
   const input = await adapter.buildInput(asOf);
+  const claudeMtdSpendEur = input.spend.claude_mtd_eur;
 
   const { output, syntheticAlerts, agentRunId, costEur } =
     await orchestratorAgent.runOrchestratorAgent(opts.runtime, {
@@ -83,6 +93,12 @@ export async function runOrchestratorJob(
     webhookPosted = await postWebhook(webhookUrl, output.headline, output.operator_action_items);
   }
 
+  let budgetAlertSent = false;
+  if (opts.onBudgetAlert && claudeBudgetEur > 0 && claudeMtdSpendEur / claudeBudgetEur >= 0.8) {
+    await opts.onBudgetAlert(claudeMtdSpendEur, claudeBudgetEur);
+    budgetAlertSent = true;
+  }
+
   return {
     headline: output.headline,
     alertCount: output.alerts.length,
@@ -91,6 +107,8 @@ export async function runOrchestratorJob(
     agentRunId,
     costEur,
     webhookPosted,
+    claudeMtdSpendEur,
+    budgetAlertSent,
   };
 }
 

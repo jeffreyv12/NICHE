@@ -162,6 +162,56 @@ describe("runOrchestratorJob", () => {
     expect(callArg?.week_of).toBe("2026-06-09");
   });
 
+  it("does not call onBudgetAlert when spend is below 80%", async () => {
+    const onBudgetAlert = vi.fn().mockResolvedValue(undefined);
+    mockAgentResponse(makeOutput());
+
+    const result = await runOrchestratorJob(
+      makeOpts({
+        snapshot: makeSnapshot(
+          makeInput({
+            spend: {
+              claude_mtd_eur: 159,
+              claude_budget_eur: 200,
+              cost_ledger_mtd: [],
+              paid_traffic_mtd_eur: 0,
+            },
+          }),
+        ),
+        claudeBudgetEur: 200,
+        onBudgetAlert,
+      }),
+    );
+
+    expect(result.budgetAlertSent).toBe(false);
+    expect(onBudgetAlert).not.toHaveBeenCalled();
+  });
+
+  it("calls onBudgetAlert and sets budgetAlertSent when spend ≥ 80%", async () => {
+    const onBudgetAlert = vi.fn().mockResolvedValue(undefined);
+    mockAgentResponse(makeOutput());
+
+    const result = await runOrchestratorJob(
+      makeOpts({
+        snapshot: makeSnapshot(
+          makeInput({
+            spend: {
+              claude_mtd_eur: 160,
+              claude_budget_eur: 200,
+              cost_ledger_mtd: [],
+              paid_traffic_mtd_eur: 0,
+            },
+          }),
+        ),
+        claudeBudgetEur: 200,
+        onBudgetAlert,
+      }),
+    );
+
+    expect(result.budgetAlertSent).toBe(true);
+    expect(onBudgetAlert).toHaveBeenCalledWith(160, 200);
+  });
+
   it("parses kills_recommended with optional redirect_to_niche_slug (Phase 6.1.5)", () => {
     const withRedirect = orchestratorAgent.OrchestratorOutputSchema.parse({
       week_of: "2026-06-02",
