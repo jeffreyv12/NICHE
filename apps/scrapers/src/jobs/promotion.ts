@@ -14,11 +14,12 @@ import { promotionAgent } from "@nichefinder/agent-sdk";
 import type { RunAgentRuntime } from "@nichefinder/agent-sdk";
 import {
   type ServiceDb,
-  conversions,
   gscMetrics,
+  nicheMonthlyMetrics,
   niches,
   promotionEvaluations,
 } from "@nichefinder/db";
+import { toRevenueSeries } from "@nichefinder/shared";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -201,7 +202,7 @@ async function evaluateOne(
 
   const [revSeries, clicksSeries, brandedClicksPerMonth, nonBrandLongTailShare, medianBotScore] =
     await Promise.all([
-      fetchRevenueSeries(db, niche.tenantId, asOf),
+      fetchRevenueSeries(db, niche.id, asOf),
       fetchClicksSeries(db, niche.tenantId, asOf),
       fetchBrandedClicksPerMonth(db, niche.tenantId, asOf),
       fetchNonBrandLongTailShare(db, niche.tenantId, asOf),
@@ -282,33 +283,29 @@ function monthEnd(asOf: Date, monthsBack: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// C1 revenue — PER-NICHE monthly close (migration 0009). Reads the immutable
+// monthly rows persisted by the niche-monthly-metrics rollup job, NOT tenant-
+// wide conversions, so a niche is judged on its OWN pages' revenue. (Before
+// 0009 this summed conversions by tenant_id — wrong grain under the subfolder
+// model.) Run `niche-monthly-metrics-once` before the promotion job so closes
+// are fresh; a missing month is treated as €0 by toRevenueSeries.
 async function fetchRevenueSeries(
   db: ServiceDb,
-  tenantId: string,
+  nicheId: string,
   asOf: Date,
 ): Promise<[number, number, number]> {
-  const months = [2, 1, 0].map((back) => ({
-    start: monthStart(asOf, back),
-    end: monthEnd(asOf, back),
-  }));
+  const rows = await db
+    .select({
+      month: nicheMonthlyMetrics.month,
+      revenueEur: nicheMonthlyMetrics.revenueEur,
+    })
+    .from(nicheMonthlyMetrics)
+    .where(eq(nicheMonthlyMetrics.nicheId, nicheId));
 
-  const series = await Promise.all(
-    months.map(async ({ start, end }) => {
-      const rows = await db
-        .select({ total: sql<string>`coalesce(sum(commission_cents),0)` })
-        .from(conversions)
-        .where(
-          and(
-            eq(conversions.tenantId, tenantId),
-            gte(conversions.occurredAt, new Date(start)),
-            sql`occurred_at <= ${end}::date + interval '1 day'`,
-          ),
-        );
-      return Number(rows[0]?.total ?? 0) / 100;
-    }),
+  return toRevenueSeries(
+    rows.map((r) => ({ month: r.month, revenueEur: Number(r.revenueEur) })),
+    asOf,
   );
-
-  return series as [number, number, number];
 }
 
 async function fetchClicksSeries(
