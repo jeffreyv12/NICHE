@@ -431,6 +431,36 @@ export const promotionEvaluations = pgTable(
   }),
 );
 
+// NICHE MONTHLY METRICS ---------------------------------------------------
+// Phase 5.4 support — per-niche monthly close (migration 0009). Immutable-ish
+// monthly revenue snapshot the promotion gate reads instead of re-deriving
+// tenant-grain totals each run. The nightly rollup job upserts on
+// (niche_id, month). organic_clicks is NULL until the GSC page-dimension pull
+// lands (TODO gsc-page-dim). Admin-read RLS; service-role writes.
+
+export const nicheMonthlyMetrics = pgTable(
+  "niche_monthly_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nicheId: uuid("niche_id")
+      .notNull()
+      .references(() => niches.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+    /** First-of-month (UTC) bucket key, e.g. 2026-06-01. */
+    month: date("month").notNull(),
+    revenueEur: numeric("revenue_eur", { precision: 12, scale: 2 }).notNull().default("0"),
+    conversionsCount: integer("conversions_count").notNull().default(0),
+    /** Per-niche organic clicks — NULL until GSC page-dim attribution exists. */
+    organicClicks: integer("organic_clicks"),
+    computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    nicheMonthUnique: unique().on(t.nicheId, t.month),
+    nicheMonthIdx: index("niche_monthly_metrics_niche_month_idx").on(t.nicheId, t.month),
+    tenantIdx: index("niche_monthly_metrics_tenant_idx").on(t.tenantId),
+  }),
+);
+
 // VALIDATION EVALUATIONS --------------------------------------------------
 // Phase 3.3. The agent writes a GO/PIVOT/KILL recommendation here; the
 // operator confirms a row in the admin UI, which is what transitions

@@ -13,3 +13,4 @@ export * from "./claimVerifier";
 export * from "./firstPartyTest";
 export * from "./costTelemetry";
 export * from "./killCriteria";
+export * from "./nicheMonthlyMetrics";
