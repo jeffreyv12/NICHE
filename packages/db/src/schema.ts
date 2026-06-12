@@ -411,6 +411,30 @@ export const gscMetrics = pgTable(
   }),
 );
 
+// GSC PAGE METRICS (migration 0010) ---------------------------------------
+// Page-grain daily GSC clicks, used to attribute organic clicks per niche
+// (page_path → pages.full_path → niche_id). gsc_metrics stays tenant-grain.
+
+export const gscPageMetrics = pgTable(
+  "gsc_page_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    // Normalized page path (no host/query/fragment, no trailing slash).
+    pagePath: text("page_path").notNull(),
+    clicks: integer("clicks").notNull().default(0),
+    impressions: integer("impressions").notNull().default(0),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tenantDatePathUnique: unique().on(t.tenantId, t.date, t.pagePath),
+    tenantDateIdx: index("gsc_page_metrics_tenant_date_idx").on(t.tenantId, t.date),
+  }),
+);
+
 // PROMOTION EVALUATIONS ---------------------------------------------------
 
 export const promotionEvaluations = pgTable(
@@ -435,8 +459,9 @@ export const promotionEvaluations = pgTable(
 // Phase 5.4 support — per-niche monthly close (migration 0009). Immutable-ish
 // monthly revenue snapshot the promotion gate reads instead of re-deriving
 // tenant-grain totals each run. The nightly rollup job upserts on
-// (niche_id, month). organic_clicks is NULL until the GSC page-dimension pull
-// lands (TODO gsc-page-dim). Admin-read RLS; service-role writes.
+// (niche_id, month). organic_clicks is backfilled per niche from gsc_page_metrics
+// (migration 0010), and stays NULL for any niche×month with no GSC rows yet
+// (preserve-on-no-data). Admin-read RLS; service-role writes.
 
 export const nicheMonthlyMetrics = pgTable(
   "niche_monthly_metrics",

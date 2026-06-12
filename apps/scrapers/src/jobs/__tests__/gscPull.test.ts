@@ -220,5 +220,64 @@ describe("runGscPullJob", () => {
     const result = await runGscPullJob({ db, serviceAccount: STUB_ACCOUNT, gscClient });
     expect(result.datesWritten).toBe(0);
     expect(result.tenantsProcessed).toBe(1);
+    expect(result.pagesWritten).toBe(0);
+  });
+
+  it("writes page-grain rows from the date+page dimension, normalized + aggregated", async () => {
+    const { db, insertedRows } = makeMockDb([
+      {
+        id: "t1",
+        slug: "test",
+        isActive: true,
+        config: { gscSiteUrl: "sc-domain:example.com" },
+      },
+    ]);
+
+    const gscClient = makeGscClient([
+      {
+        siteUrl: "sc-domain:example.com",
+        request: { startDate: "", endDate: "", dimensions: ["date", "page"] },
+        response: {
+          rows: [
+            {
+              keys: ["2026-06-01", "https://example.com/test/koffie/beste-machine"],
+              clicks: 10,
+              impressions: 100,
+              ctr: 0.1,
+              position: 3,
+            },
+            // Trailing-slash + query variant of the SAME page → must aggregate.
+            {
+              keys: ["2026-06-01", "https://example.com/test/koffie/beste-machine/?utm=nl"],
+              clicks: 5,
+              impressions: 50,
+              ctr: 0.1,
+              position: 3,
+            },
+            {
+              keys: ["2026-06-01", "https://example.com/test/thee/beste-thee"],
+              clicks: 7,
+              impressions: 70,
+              ctr: 0.1,
+              position: 4,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const result = await runGscPullJob({ db, serviceAccount: STUB_ACCOUNT, gscClient });
+
+    const pageRows = insertedRows.filter((r) => "pagePath" in r);
+    expect(result.pagesWritten).toBe(2); // two DISTINCT normalized paths
+    expect(pageRows.find((r) => r.pagePath === "/test/koffie/beste-machine")).toMatchObject({
+      tenantId: "t1",
+      date: "2026-06-01",
+      clicks: 15, // 10 + 5 aggregated
+      impressions: 150,
+    });
+    expect(pageRows.find((r) => r.pagePath === "/test/thee/beste-thee")).toMatchObject({
+      clicks: 7,
+    });
   });
 });
