@@ -11,8 +11,8 @@ import {
   type ServiceDb,
   agentRuns,
   costLedger,
-  gscMetrics,
   kills,
+  nicheMonthlyMetrics,
   niches,
   pages,
   promotionEvaluations,
@@ -147,7 +147,11 @@ export function createDefaultSnapshotAdapter(
       const monthStart = new Date(asOf.getUTCFullYear(), asOf.getUTCMonth(), 1).toISOString();
       const cutoff90d = new Date(asOf.getTime() - 90 * 86_400_000).toISOString();
 
-      const [nicheRows, claudeMtd, ledgerRows, killRows, promotionRows, heroEdits, tenantClicks] =
+      // Per-niche organic clicks + revenue come from the previous complete
+      // calendar month's niche_monthly_metrics close (NOT tenant-grain gsc_metrics
+      // — that credited every niche under a tenant with the whole site's clicks).
+      const prevMonthKey = previousCalendarMonthKey(asOf);
+      const [nicheRows, claudeMtd, ledgerRows, killRows, promotionRows, heroEdits, nicheMetrics] =
         await Promise.all([
           fetchNiches(db),
           fetchClaudeMtdSpend(db, monthStart),
@@ -155,24 +159,10 @@ export function createDefaultSnapshotAdapter(
           fetchKills90d(db, cutoff90d),
           fetchPromotions90d(db, cutoff90d),
           fetchHeroEdits(db),
-          fetchTenantClicks(
-            db,
-            new Date(asOf.getTime() - 30 * 86_400_000).toISOString().slice(0, 10),
-          ),
+          fetchNicheMetricsLastMonth(db, prevMonthKey),
         ]);
 
-      const asOfMs = asOf.getTime();
-      const nicheSnapshots = nicheRows.map((n) => ({
-        topic: n.topic,
-        topic_slug: n.topicSlug,
-        state: n.state,
-        days_in_state: Math.max(
-          0,
-          Math.floor((asOfMs - stateEnteredAt(n, asOf).getTime()) / 86_400_000),
-        ),
-        organic_clicks_last_month: tenantClicks.get(n.tenantId ?? "") ?? undefined,
-        last_hero_edit_days_ago: heroEditDaysAgo(heroEdits, n.id, asOf),
-      }));
+      const nicheSnapshots = buildNicheSnapshots(nicheRows, nicheMetrics, heroEdits, asOf);
 
       const infraMtdEur = ledgerRows.reduce((sum, r) => sum + r.amountCents / 100, 0);
       const costLedgerMtd = groupLedger(ledgerRows);
@@ -198,7 +188,7 @@ export function createDefaultSnapshotAdapter(
 // DB queries
 // ---------------------------------------------------------------------------
 
-interface NicheSnapshotRow {
+export interface NicheSnapshotRow {
   id: string;
   topic: string;
   topicSlug: string;
@@ -210,6 +200,54 @@ interface NicheSnapshotRow {
   matureAt: Date | null;
   promotedAt: Date | null;
   killedAt: Date | null;
+}
+
+/** Previous-calendar-month per-niche close, keyed by niche id in the snapshot. */
+export interface NicheLastMonthMetrics {
+  /** niche_monthly_metrics.organic_clicks — NULL when no GSC data (preserve-on-no-data). */
+  organicClicks: number | null;
+  /** niche_monthly_metrics.revenue_eur — a present close means revenue is known (may be 0). */
+  revenueEur: number;
+}
+
+/** First day (UTC) of the calendar month BEFORE `asOf`'s month, as "YYYY-MM-01". */
+export function previousCalendarMonthKey(asOf: Date): string {
+  const y = asOf.getUTCFullYear();
+  const m = asOf.getUTCMonth(); // 0-based; month 0 → previous year's December.
+  const prev = new Date(Date.UTC(y, m - 1, 1));
+  return prev.toISOString().slice(0, 10);
+}
+
+/**
+ * Pure: assemble the per-niche snapshot the Orchestrator Agent reads. Organic
+ * clicks and revenue are looked up by NICHE id (`metricsByNicheId`), so two
+ * niches under one tenant get their own figures — the old tenant-grain query
+ * credited both with the whole site's clicks (CLAUDE.md #9). A missing close →
+ * both metrics omitted; a NULL organic_clicks → that one metric omitted while
+ * revenue is still reported ("unknown" ≠ "0").
+ */
+export function buildNicheSnapshots(
+  nicheRows: readonly NicheSnapshotRow[],
+  metricsByNicheId: ReadonlyMap<string, NicheLastMonthMetrics>,
+  heroEdits: readonly HeroEditRow[],
+  asOf: Date,
+): orchestratorAgent.OrchestratorInput["niches"] {
+  const asOfMs = asOf.getTime();
+  return nicheRows.map((n) => {
+    const m = metricsByNicheId.get(n.id);
+    return {
+      topic: n.topic,
+      topic_slug: n.topicSlug,
+      state: n.state,
+      days_in_state: Math.max(
+        0,
+        Math.floor((asOfMs - stateEnteredAt(n, asOf).getTime()) / 86_400_000),
+      ),
+      revenue_last_month_eur: m?.revenueEur,
+      organic_clicks_last_month: m?.organicClicks ?? undefined,
+      last_hero_edit_days_ago: heroEditDaysAgo(heroEdits, n.id, asOf),
+    };
+  });
 }
 
 async function fetchNiches(db: ServiceDb): Promise<NicheSnapshotRow[]> {
@@ -324,7 +362,7 @@ async function fetchPromotions90d(db: ServiceDb, cutoff: string): Promise<Promot
   }));
 }
 
-interface HeroEditRow {
+export interface HeroEditRow {
   nicheId: string | null;
   lastEditedAt: Date | null;
 }
@@ -341,24 +379,37 @@ async function fetchHeroEdits(db: ServiceDb): Promise<HeroEditRow[]> {
   >;
 }
 
-function heroEditDaysAgo(heroEdits: HeroEditRow[], nicheId: string, asOf: Date): number | null {
+function heroEditDaysAgo(
+  heroEdits: readonly HeroEditRow[],
+  nicheId: string,
+  asOf: Date,
+): number | null {
   const row = heroEdits.find((r) => r.nicheId === nicheId);
   if (!row?.lastEditedAt) return null;
   return Math.max(0, Math.floor((asOf.getTime() - row.lastEditedAt.getTime()) / 86_400_000));
 }
 
-async function fetchTenantClicks(db: ServiceDb, cutoffDate: string): Promise<Map<string, number>> {
+// Per-niche close for one calendar month (migration 0009/0010), keyed by niche id.
+// organic_clicks may be NULL (preserve-on-no-data); revenue_eur is numeric text.
+async function fetchNicheMetricsLastMonth(
+  db: ServiceDb,
+  monthKey: string,
+): Promise<Map<string, NicheLastMonthMetrics>> {
   const rows = await db
     .select({
-      tenantId: gscMetrics.tenantId,
-      clicks: gscMetrics.clicks,
+      nicheId: nicheMonthlyMetrics.nicheId,
+      organicClicks: nicheMonthlyMetrics.organicClicks,
+      revenueEur: nicheMonthlyMetrics.revenueEur,
     })
-    .from(gscMetrics)
-    .where(gte(gscMetrics.date, cutoffDate));
+    .from(nicheMonthlyMetrics)
+    .where(eq(nicheMonthlyMetrics.month, monthKey));
 
-  const map = new Map<string, number>();
+  const map = new Map<string, NicheLastMonthMetrics>();
   for (const r of rows) {
-    map.set(r.tenantId, (map.get(r.tenantId) ?? 0) + (r.clicks ?? 0));
+    map.set(r.nicheId, {
+      organicClicks: r.organicClicks ?? null,
+      revenueEur: Number(r.revenueEur ?? 0),
+    });
   }
   return map;
 }

@@ -1,7 +1,16 @@
 import { orchestratorAgent } from "@nichefinder/agent-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PortfolioSnapshotAdapter, RunOrchestratorJobOptions } from "../orchestrator.js";
-import { runOrchestratorJob } from "../orchestrator.js";
+import type {
+  HeroEditRow,
+  NicheSnapshotRow,
+  PortfolioSnapshotAdapter,
+  RunOrchestratorJobOptions,
+} from "../orchestrator.js";
+import {
+  buildNicheSnapshots,
+  previousCalendarMonthKey,
+  runOrchestratorJob,
+} from "../orchestrator.js";
 
 // ---------------------------------------------------------------------------
 // Mock the agent runner so no real Anthropic or DB calls are made.
@@ -254,5 +263,100 @@ describe("runOrchestratorJob", () => {
       ],
     });
     expect(withoutRedirect.kills_recommended[0]?.redirect_to_niche_slug).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pure snapshot helpers (per-niche organic clicks + revenue, Phase 6.1)
+// ---------------------------------------------------------------------------
+
+describe("previousCalendarMonthKey", () => {
+  it("returns the first day of the previous calendar month (UTC)", () => {
+    expect(previousCalendarMonthKey(new Date("2026-06-09T06:00:00.000Z"))).toBe("2026-05-01");
+  });
+
+  it("rolls back across the year boundary", () => {
+    expect(previousCalendarMonthKey(new Date("2026-01-15T12:00:00.000Z"))).toBe("2025-12-01");
+  });
+});
+
+describe("buildNicheSnapshots", () => {
+  const asOf = new Date("2026-06-15T00:00:00.000Z");
+
+  function nicheRow(over: Partial<NicheSnapshotRow> = {}): NicheSnapshotRow {
+    return {
+      id: "n1",
+      topic: "Topic",
+      topicSlug: "topic",
+      tenantId: "t1",
+      state: "validating",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      validationStartedAt: null,
+      buildingStartedAt: null,
+      matureAt: null,
+      promotedAt: null,
+      killedAt: null,
+      ...over,
+    };
+  }
+
+  it("credits each niche its OWN organic clicks — no tenant-wide bleed", () => {
+    // Two niches under the SAME tenant must get DIFFERENT figures (the old
+    // tenant-grain query gave both the site-wide total — CLAUDE.md #9).
+    const niches = [
+      nicheRow({ id: "n1", topicSlug: "a", tenantId: "t1", state: "building" }),
+      nicheRow({ id: "n2", topicSlug: "b", tenantId: "t1", state: "building" }),
+    ];
+    const metrics = new Map([
+      ["n1", { organicClicks: 1200, revenueEur: 80 }],
+      ["n2", { organicClicks: 9, revenueEur: 0 }],
+    ]);
+    const out = buildNicheSnapshots(niches, metrics, [], asOf);
+    expect(out.find((n) => n.topic_slug === "a")?.organic_clicks_last_month).toBe(1200);
+    expect(out.find((n) => n.topic_slug === "b")?.organic_clicks_last_month).toBe(9);
+  });
+
+  it("surfaces revenue_last_month_eur from the same monthly close (incl. genuine €0)", () => {
+    const niches = [nicheRow({ id: "n1", topicSlug: "a", state: "mature" })];
+    const metrics = new Map([["n1", { organicClicks: 50, revenueEur: 0 }]]);
+    const out = buildNicheSnapshots(niches, metrics, [], asOf);
+    expect(out[0]?.revenue_last_month_eur).toBe(0);
+  });
+
+  it("omits organic_clicks when the close is NULL (preserve-on-no-data → unknown)", () => {
+    const niches = [nicheRow({ id: "n1", topicSlug: "a" })];
+    const metrics = new Map([["n1", { organicClicks: null, revenueEur: 12 }]]);
+    const out = buildNicheSnapshots(niches, metrics, [], asOf);
+    expect(out[0]?.organic_clicks_last_month).toBeUndefined();
+    expect(out[0]?.revenue_last_month_eur).toBe(12);
+  });
+
+  it("omits both metrics when the niche has no monthly close at all", () => {
+    const niches = [nicheRow({ id: "n1", topicSlug: "a" })];
+    const out = buildNicheSnapshots(niches, new Map(), [], asOf);
+    expect(out[0]?.organic_clicks_last_month).toBeUndefined();
+    expect(out[0]?.revenue_last_month_eur).toBeUndefined();
+  });
+
+  it("computes days_in_state from the state-entry timestamp", () => {
+    const niches = [
+      nicheRow({
+        id: "n1",
+        topicSlug: "a",
+        state: "validating",
+        validationStartedAt: new Date("2026-06-05T00:00:00.000Z"),
+      }),
+    ];
+    const out = buildNicheSnapshots(niches, new Map(), [], asOf);
+    expect(out[0]?.days_in_state).toBe(10); // Jun 5 → Jun 15
+  });
+
+  it("reports last_hero_edit_days_ago from the matching page", () => {
+    const niches = [nicheRow({ id: "n1", topicSlug: "a", state: "building" })];
+    const heroEdits: HeroEditRow[] = [
+      { nicheId: "n1", lastEditedAt: new Date("2026-06-10T00:00:00.000Z") },
+    ];
+    const out = buildNicheSnapshots(niches, new Map(), heroEdits, asOf);
+    expect(out[0]?.last_hero_edit_days_ago).toBe(5); // Jun 10 → Jun 15
   });
 });
