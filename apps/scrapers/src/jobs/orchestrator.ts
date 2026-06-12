@@ -10,6 +10,7 @@ import { type RunAgentRuntime, orchestratorAgent } from "@nichefinder/agent-sdk"
 import {
   type ServiceDb,
   agentRuns,
+  algorithmEvents,
   costLedger,
   kills,
   nicheMonthlyMetrics,
@@ -17,7 +18,8 @@ import {
   pages,
   promotionEvaluations,
 } from "@nichefinder/db";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { type AlgorithmEventForAgent, selectAlgorithmEvents30d } from "@nichefinder/shared";
+import { and, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Public interface
@@ -151,20 +153,27 @@ export function createDefaultSnapshotAdapter(
       // calendar month's niche_monthly_metrics close (NOT tenant-grain gsc_metrics
       // — that credited every niche under a tenant with the whole site's clicks).
       const prevMonthKey = previousCalendarMonthKey(asOf);
-      const [nicheRows, claudeMtd, ledgerRows, killRows, promotionRows, heroEdits, nicheMetrics] =
-        await Promise.all([
-          fetchNiches(db),
-          fetchClaudeMtdSpend(db, monthStart),
-          fetchCostLedger(db, monthStart),
-          fetchKills90d(db, cutoff90d),
-          fetchPromotions90d(db, cutoff90d),
-          fetchHeroEdits(db),
-          fetchNicheMetricsLastMonth(db, prevMonthKey),
-        ]);
+      const [
+        nicheRows,
+        claudeMtd,
+        ledgerRows,
+        killRows,
+        promotionRows,
+        heroEdits,
+        nicheMetrics,
+        algoEvents,
+      ] = await Promise.all([
+        fetchNiches(db),
+        fetchClaudeMtdSpend(db, monthStart),
+        fetchCostLedger(db, monthStart),
+        fetchKills90d(db, cutoff90d),
+        fetchPromotions90d(db, cutoff90d),
+        fetchHeroEdits(db),
+        fetchNicheMetricsLastMonth(db, prevMonthKey),
+        fetchAlgorithmEvents30d(db, asOf),
+      ]);
 
       const nicheSnapshots = buildNicheSnapshots(nicheRows, nicheMetrics, heroEdits, asOf);
-
-      const infraMtdEur = ledgerRows.reduce((sum, r) => sum + r.amountCents / 100, 0);
       const costLedgerMtd = groupLedger(ledgerRows);
 
       return {
@@ -178,7 +187,7 @@ export function createDefaultSnapshotAdapter(
         },
         kills_90d: killRows,
         promotions_90d: promotionRows,
-        algorithm_events_30d: [],
+        algorithm_events_30d: algoEvents,
       };
     },
   };
@@ -248,6 +257,29 @@ export function buildNicheSnapshots(
       last_hero_edit_days_ago: heroEditDaysAgo(heroEdits, n.id, asOf),
     };
   });
+}
+
+// Global Google update windows (criterion 6 / weekly review). Load rows that
+// could overlap the trailing 30 days; the pure helper applies exact overlap.
+async function fetchAlgorithmEvents30d(
+  db: ServiceDb,
+  asOf: Date,
+): Promise<AlgorithmEventForAgent[]> {
+  const windowOpen = new Date(asOf.getTime() - 30 * 86_400_000);
+  const rows = await db
+    .select({
+      kind: algorithmEvents.kind,
+      startedAt: algorithmEvents.startedAt,
+      endedAt: algorithmEvents.endedAt,
+    })
+    .from(algorithmEvents)
+    .where(
+      and(
+        lte(algorithmEvents.startedAt, asOf),
+        or(isNull(algorithmEvents.endedAt), gte(algorithmEvents.endedAt, windowOpen)),
+      ),
+    );
+  return selectAlgorithmEvents30d(rows, asOf);
 }
 
 async function fetchNiches(db: ServiceDb): Promise<NicheSnapshotRow[]> {

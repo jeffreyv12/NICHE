@@ -670,3 +670,27 @@ export const costLedger = pgTable(
     occurredIdx: index("cost_ledger_occurred_idx").on(t.occurredOn),
   }),
 );
+
+// ALGORITHM EVENTS (migration 0011) ---------------------------------------
+// Global log of Google ranking-update windows (core/HCU/spam updates) for the
+// promotion gate's "no active update window" criterion (docs/PROMOTION_GATE.md
+// #6). ended_at NULL = rollout still ongoing. Admin-read RLS; service-role writes.
+
+export const algorithmEvents = pgTable(
+  "algorithm_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** 'core_update' | 'helpful_content_update' | 'spam_update' | 'reviews_update' | 'other'. */
+    kind: text("kind").notNull(),
+    /** Human label as published, e.g. "March 2026 core update". */
+    name: text("name"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    /** NULL while the rollout is still in progress. */
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    source: text("source").notNull().default("google_search_status"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    startedIdx: index("algorithm_events_started_idx").on(t.startedAt),
+  }),
+);
