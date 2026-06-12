@@ -11,7 +11,8 @@
 // C4 (branded search signal) criteria.
 
 import type { ServiceDb } from "@nichefinder/db";
-import { gscMetrics, tenants } from "@nichefinder/db";
+import { gscMetrics, gscPageMetrics, tenants } from "@nichefinder/db";
+import { normalizeGscPagePath } from "@nichefinder/shared";
 import { and, eq, gte } from "drizzle-orm";
 import { GscClient } from "../sources/gsc/client.js";
 import type { ServiceAccountJson } from "../sources/gsc/types.js";
@@ -40,6 +41,8 @@ export interface GscPullTenantResult {
   slug: string;
   siteUrl: string;
   datesWritten: number;
+  /** Distinct (date, page_path) rows written to gsc_page_metrics (migration 0010). */
+  pagesWritten: number;
   error?: string;
 }
 
@@ -47,6 +50,7 @@ export interface RunGscPullJobResult {
   tenantsProcessed: number;
   tenantsSkipped: number;
   datesWritten: number;
+  pagesWritten: number;
   errors: string[];
   tenants: GscPullTenantResult[];
 }
@@ -99,6 +103,7 @@ export async function runGscPullJob(opts: RunGscPullJobOptions): Promise<RunGscP
     tenantsProcessed: 0,
     tenantsSkipped: 0,
     datesWritten: 0,
+    pagesWritten: 0,
     errors: [],
     tenants: [],
   };
@@ -193,13 +198,65 @@ export async function runGscPullJob(opts: RunGscPullJobOptions): Promise<RunGscP
         datesWritten++;
       }
 
+      // 3. Page-level clicks → gsc_page_metrics (migration 0010), for per-niche
+      //    organic-click attribution. Page count per site is bounded, so one
+      //    ["date","page"] query over the short lookback stays within the row
+      //    cap. Distinct GSC URLs (trailing slash / query variants) collapse
+      //    onto one normalized path, so aggregate before the upsert.
+      const pageRows = await client.querySearchAnalytics(siteUrl, {
+        startDate,
+        endDate,
+        dimensions: ["date", "page"],
+        rowLimit: 5000,
+      });
+
+      const pageAgg = new Map<
+        string,
+        { date: string; pagePath: string; clicks: number; impressions: number }
+      >();
+      for (const row of pageRows.rows) {
+        const [date, rawPage] = row.keys;
+        if (!date || !rawPage) continue;
+        const pagePath = normalizeGscPagePath(rawPage);
+        const key = `${date}\n${pagePath}`;
+        const cur = pageAgg.get(key) ?? { date, pagePath, clicks: 0, impressions: 0 };
+        cur.clicks += row.clicks;
+        cur.impressions += row.impressions;
+        pageAgg.set(key, cur);
+      }
+
+      let pagesWritten = 0;
+      for (const p of pageAgg.values()) {
+        await opts.db
+          .insert(gscPageMetrics)
+          .values({
+            tenantId: tenant.id,
+            date: p.date,
+            pagePath: p.pagePath,
+            clicks: p.clicks,
+            impressions: p.impressions,
+            fetchedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [gscPageMetrics.tenantId, gscPageMetrics.date, gscPageMetrics.pagePath],
+            set: {
+              clicks: p.clicks,
+              impressions: p.impressions,
+              fetchedAt: new Date(),
+            },
+          });
+        pagesWritten++;
+      }
+
       result.tenantsProcessed++;
       result.datesWritten += datesWritten;
+      result.pagesWritten += pagesWritten;
       result.tenants.push({
         tenantId: tenant.id,
         slug: tenant.slug,
         siteUrl,
         datesWritten,
+        pagesWritten,
       });
     } catch (err) {
       const msg = `tenant ${tenant.slug} (${siteUrl}): ${err instanceof Error ? err.message : String(err)}`;
@@ -209,6 +266,7 @@ export async function runGscPullJob(opts: RunGscPullJobOptions): Promise<RunGscP
         slug: tenant.slug,
         siteUrl,
         datesWritten: 0,
+        pagesWritten: 0,
         error: msg,
       });
     }

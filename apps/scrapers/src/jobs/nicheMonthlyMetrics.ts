@@ -6,20 +6,37 @@
 // run lets late-arriving conversions and refunds settle recent months while
 // older months stabilise.
 //
-// REVENUE ONLY. `organic_clicks` is left untouched (NULL) — it is not derivable
-// per niche yet (gsc_metrics is tenant-grain). When the GSC page-dimension pull
-// lands it backfills that column; this job's upsert deliberately does NOT write
-// organic_clicks, so that future backfill survives. TODO(gsc-page-dim).
+// REVENUE + ORGANIC CLICKS. Revenue comes from `conversions`; per-niche organic
+// clicks come from `gsc_page_metrics` (migration 0010), attributed to a niche via
+// page_path → pages.full_path → niche_id. Both sides normalize the path with the
+// SAME normalizeGscPagePath so GSC's URL variants compare equal to full_path.
 //
-// Pure aggregation lives in @nichefinder/shared (rollupNicheMonthlyRevenue);
-// this file is the I/O shell. Injected db + an injectable conversion loader make
-// it unit-testable without a live DB. Mirrors killScan.ts.
+// organic_clicks uses PRESERVE-ON-NO-DATA semantics (unlike the zero-filled
+// revenue): a niche×month with no matching GSC rows is inserted as NULL, and the
+// conflict SET coalesces (excluded → existing) so a gap never overwrites a real
+// figure. The table is new and backfills gradually, so "no rows" means "unknown",
+// not "zero" — and the promotion gate's C2 must not read a false 0 (CLAUDE.md #10).
+//
+// Pure aggregation lives in @nichefinder/shared (rollupNicheMonthlyRevenue,
+// rollupNicheMonthlyOrganicClicks); this file is the I/O shell. Injected db +
+// injectable loaders make it unit-testable without a live DB. Mirrors killScan.ts.
 
-import { type ServiceDb, conversions, nicheMonthlyMetrics, niches, pages } from "@nichefinder/db";
+import {
+  type ServiceDb,
+  conversions,
+  gscPageMetrics,
+  nicheMonthlyMetrics,
+  niches,
+  pages,
+} from "@nichefinder/db";
 import {
   type ConversionForRollup,
+  type PageClicksRow,
   lastNMonthKeys,
+  normalizeGscPagePath,
+  rollupNicheMonthlyOrganicClicks,
   rollupNicheMonthlyRevenue,
+  tenantPathKey,
 } from "@nichefinder/shared";
 import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 
@@ -28,6 +45,15 @@ const TRACKED_STATES = ["validating", "go", "building", "mature", "promoted"] as
 
 export interface LoadedConversion extends ConversionForRollup {
   tenantId: string | null;
+}
+
+/** One niche-owned page, used to build the tenant+path → niche attribution map. */
+export interface NichePathRow {
+  nicheId: string;
+  /** Owning tenant; pages.tenant_id is NOT NULL, so this is always present. */
+  tenantId: string;
+  /** Stored pages.full_path; normalized before keying. */
+  fullPath: string;
 }
 
 export interface RunNicheMonthlyMetricsOptions {
@@ -46,6 +72,10 @@ export interface RunNicheMonthlyMetricsOptions {
     sinceIso: string,
     nicheId?: string,
   ) => Promise<LoadedConversion[]>;
+  /** Injectable page-clicks loader. Defaults to a gsc_page_metrics window query. */
+  loadPageClicks?: (db: ServiceDb, sinceIso: string, nicheId?: string) => Promise<PageClicksRow[]>;
+  /** Injectable niche-paths loader. Defaults to a pages query over niche-owned pages. */
+  loadNichePaths?: (db: ServiceDb, nicheId?: string) => Promise<NichePathRow[]>;
 }
 
 export interface RunNicheMonthlyMetricsResult {
@@ -68,6 +98,8 @@ export async function runNicheMonthlyMetricsJob(
   const months = lastNMonthKeys(asOf, monthsBack);
   const sinceIso = `${months[0]}T00:00:00.000Z`;
   const loadConversions = opts.loadConversions ?? defaultLoadConversions;
+  const loadPageClicks = opts.loadPageClicks ?? defaultLoadPageClicks;
+  const loadNichePaths = opts.loadNichePaths ?? defaultLoadNichePaths;
 
   const targets = await selectTargetNiches(opts.db, opts.nicheId);
   if (targets.length === 0) {
@@ -77,20 +109,35 @@ export async function runNicheMonthlyMetricsJob(
   const loaded = await loadConversions(opts.db, sinceIso, opts.nicheId);
   const rolled = rollupNicheMonthlyRevenue(loaded, { countPending: opts.countPending });
 
-  // Index rolled revenue by `${nicheId} ${month}` for O(1) lookup while filling
-  // the full niche × window grid (so a month that dropped to €0 is overwritten,
-  // not left stale).
+  // Organic clicks: map each niche-owned page path → nicheId (tenant-scoped, same
+  // normalization as the GSC side), then roll page-grain clicks up per niche×month.
+  const nichePaths = await loadNichePaths(opts.db, opts.nicheId);
+  const nicheByTenantPath = new Map<string, string>();
+  for (const p of nichePaths) {
+    nicheByTenantPath.set(tenantPathKey(p.tenantId, normalizeGscPagePath(p.fullPath)), p.nicheId);
+  }
+  const pageClicks = await loadPageClicks(opts.db, sinceIso, opts.nicheId);
+  const organic = rollupNicheMonthlyOrganicClicks(pageClicks, nicheByTenantPath);
+
+  // Index rolled revenue + organic clicks by `${nicheId} ${month}` for O(1) lookup
+  // while filling the full niche × window grid (so a month that dropped to €0 is
+  // overwritten, not left stale).
   const byKey = new Map(rolled.map((r) => [`${r.nicheId} ${r.month}`, r]));
+  const organicByKey = new Map(organic.map((o) => [`${o.nicheId} ${o.month}`, o.organicClicks]));
 
   const rows = targets.flatMap((niche) =>
     months.map((month) => {
       const hit = byKey.get(`${niche.id} ${month}`);
+      // PRESERVE-ON-NO-DATA: no matching GSC rows → NULL (not 0), so the coalesce
+      // SET below keeps any prior value instead of asserting "no organic traffic".
+      const organicClicks = organicByKey.get(`${niche.id} ${month}`) ?? null;
       return {
         nicheId: niche.id,
         tenantId: niche.tenantId,
         month,
         revenueEur: (hit?.revenueEur ?? 0).toFixed(2),
         conversionsCount: hit?.conversionsCount ?? 0,
+        organicClicks,
       };
     }),
   );
@@ -102,9 +149,12 @@ export async function runNicheMonthlyMetricsJob(
       target: [nicheMonthlyMetrics.nicheId, nicheMonthlyMetrics.month],
       set: {
         // excluded.* = the values from this INSERT, so each conflicting row gets
-        // its own recomputed figure. organic_clicks is intentionally absent.
+        // its own recomputed figure.
         revenueEur: sql`excluded.revenue_eur`,
         conversionsCount: sql`excluded.conversions_count`,
+        // Keep the stored organic_clicks when this run had no GSC data for the
+        // niche×month (excluded.organic_clicks IS NULL) — see PRESERVE-ON-NO-DATA.
+        organicClicks: sql`coalesce(excluded.organic_clicks, ${nicheMonthlyMetrics.organicClicks})`,
         tenantId: sql`excluded.tenant_id`,
         computedAt: sql`now()`,
       },
@@ -171,4 +221,48 @@ async function defaultLoadConversions(
       commissionCents: r.commissionCents,
       status: r.status,
     }));
+}
+
+// -----------------------------------------------------------------------------
+// Default page-clicks loader: page-grain GSC clicks since `since` from
+// gsc_page_metrics (migration 0010). Tenant-scoped attribution happens in the
+// rollup; this just streams the window. nicheId can't filter here (the table has
+// no niche dimension) — over-fetch is bounded by the page count per site.
+// -----------------------------------------------------------------------------
+
+async function defaultLoadPageClicks(
+  db: ServiceDb,
+  sinceIso: string,
+  _nicheId?: string,
+): Promise<PageClicksRow[]> {
+  return db
+    .select({
+      tenantId: gscPageMetrics.tenantId,
+      pagePath: gscPageMetrics.pagePath,
+      date: gscPageMetrics.date,
+      clicks: gscPageMetrics.clicks,
+    })
+    .from(gscPageMetrics)
+    .where(gte(gscPageMetrics.date, sinceIso.slice(0, 10))) as Promise<PageClicksRow[]>;
+}
+
+// -----------------------------------------------------------------------------
+// Default niche-paths loader: every niche-owned page's (tenant_id, full_path).
+// Pages with no niche are excluded — clicks on them can't be attributed. When a
+// single niche is targeted, restrict to its pages.
+// -----------------------------------------------------------------------------
+
+async function defaultLoadNichePaths(db: ServiceDb, nicheId?: string): Promise<NichePathRow[]> {
+  const rows = await db
+    .select({
+      nicheId: pages.nicheId,
+      tenantId: pages.tenantId,
+      fullPath: pages.fullPath,
+    })
+    .from(pages)
+    .where(and(isNotNull(pages.nicheId), nicheId ? eq(pages.nicheId, nicheId) : undefined));
+
+  return rows
+    .filter((r): r is typeof r & { nicheId: string } => r.nicheId !== null)
+    .map((r) => ({ nicheId: r.nicheId, tenantId: r.tenantId, fullPath: r.fullPath }));
 }
