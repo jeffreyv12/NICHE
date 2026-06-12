@@ -14,13 +14,18 @@ import { promotionAgent } from "@nichefinder/agent-sdk";
 import type { RunAgentRuntime } from "@nichefinder/agent-sdk";
 import {
   type ServiceDb,
+  algorithmEvents,
   gscMetrics,
   nicheMonthlyMetrics,
   niches,
   promotionEvaluations,
 } from "@nichefinder/db";
-import { toRevenueSeries } from "@nichefinder/shared";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import {
+  type AlgorithmEventForAgent,
+  selectAlgorithmEvents30d,
+  toRevenueSeries,
+} from "@nichefinder/shared";
+import { and, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -108,6 +113,9 @@ export async function runPromotionJob(
 
   const targets = await selectEligibleNiches(opts.db, asOf, cooldownDays, limit, opts.nicheId);
 
+  // Google update windows are GLOBAL — fetch once for the whole run, not per niche.
+  const algoEvents = await fetchAlgorithmEvents30d(opts.db, asOf);
+
   const result: RunPromotionJobResult = {
     considered: targets.length,
     evaluated: [],
@@ -118,7 +126,7 @@ export async function runPromotionJob(
 
   for (const niche of targets) {
     try {
-      const r = await evaluateOne(opts.db, opts.runtime, domainAdapter, niche, asOf);
+      const r = await evaluateOne(opts.db, opts.runtime, domainAdapter, niche, asOf, algoEvents);
       result.evaluated.push(r);
       result.totalCostEur += r.costEur;
     } catch (err) {
@@ -182,6 +190,32 @@ async function selectEligibleNiches(
 }
 
 // ---------------------------------------------------------------------------
+// Algorithm events (criterion 6) — global; load rows that could overlap the
+// trailing 30 days, then let the pure helper apply the exact overlap + mapping.
+// ---------------------------------------------------------------------------
+
+async function fetchAlgorithmEvents30d(
+  db: ServiceDb,
+  asOf: Date,
+): Promise<AlgorithmEventForAgent[]> {
+  const windowOpen = new Date(asOf.getTime() - 30 * 86_400_000);
+  const rows = await db
+    .select({
+      kind: algorithmEvents.kind,
+      startedAt: algorithmEvents.startedAt,
+      endedAt: algorithmEvents.endedAt,
+    })
+    .from(algorithmEvents)
+    .where(
+      and(
+        lte(algorithmEvents.startedAt, asOf),
+        or(isNull(algorithmEvents.endedAt), gte(algorithmEvents.endedAt, windowOpen)),
+      ),
+    );
+  return selectAlgorithmEvents30d(rows, asOf);
+}
+
+// ---------------------------------------------------------------------------
 // Evaluate a single niche
 // ---------------------------------------------------------------------------
 
@@ -191,6 +225,7 @@ async function evaluateOne(
   domainAdapter: CandidateDomainAdapter,
   niche: NicheRow,
   asOf: Date,
+  algorithmEvents30d: AlgorithmEventForAgent[],
 ): Promise<PromotionJobNicheResult> {
   if (!niche.tenantId) throw new Error(`niche ${niche.id} has no tenant_id`);
 
@@ -234,7 +269,7 @@ async function evaluateOne(
         bounce_rate: 0,
       },
     },
-    algorithm_events_30d: [],
+    algorithm_events_30d: algorithmEvents30d,
     gsc_manual_actions_30d: [],
     candidate_domains: candidateDomains,
   };
