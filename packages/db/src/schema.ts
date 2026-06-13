@@ -688,9 +688,19 @@ export const algorithmEvents = pgTable(
     /** NULL while the rollout is still in progress. */
     endedAt: timestamp("ended_at", { withTimezone: true }),
     source: text("source").notNull().default("google_search_status"),
+    /**
+     * Stable id from the source (Google incident id) for idempotent ingest
+     * (migration 0012). NULL for hand-seeded rows — NULLs are distinct in the
+     * unique index, so manual seeds never collide with the ingestion upsert.
+     */
+    externalId: text("external_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     startedIdx: index("algorithm_events_started_idx").on(t.startedAt),
+    sourceExternalIdKey: uniqueIndex("algorithm_events_source_external_id_key").on(
+      t.source,
+      t.externalId,
+    ),
   }),
 );

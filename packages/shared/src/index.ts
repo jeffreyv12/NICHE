@@ -16,3 +16,4 @@ export * from "./killCriteria";
 export * from "./nicheMonthlyMetrics";
 export * from "./gscPageMetrics";
 export * from "./algorithmEvents";
+export * from "./searchStatusEvents";

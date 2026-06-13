@@ -154,7 +154,19 @@ node dist/bin/kill-scan-once.js
 node dist/bin/orchestrator-once.js
 node dist/bin/reconciliation-once.js
 node dist/bin/content-polish-once.js
+node dist/bin/algorithm-events-ingest-once.js
 ```
+
+**Scheduling order (Sun, NL time).** Two jobs feed the promotion gate and MUST
+run before it, or the gate reads stale inputs:
+
+1. `niche-monthly-metrics-once` — per-niche revenue + organic-clicks closes (criteria 1–3)
+2. `algorithm-events-ingest-once` — Google ranking-update windows (criterion 6); run **daily**, but at minimum before promotion
+3. `promotion-once` (Sun 04:00) — evaluates the gate
+
+A missed `algorithm-events-ingest-once` run degrades safely: the gate just reads
+the last-ingested events, and an empty table means criterion 6 passes (the
+pre-ingestion default). It never blocks a promotion on stale data falsely.
 
 ### 5c. Restart Next.js on Vercel
 
