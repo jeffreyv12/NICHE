@@ -1,0 +1,15 @@
+[Unit]
+Description=NicheFinder Algorithm-Events Ingest (Google Search Status) — daily 03:30 NL
+Documentation=docs/PROMOTION_GATE.md criterion 6 / docs/DATA_SOURCES.md
+
+[Timer]
+# Daily, 30 min before the Sun 04:00 promotion-eval, so the gate's "no active
+# Google update window" check (criterion 6) reads a fresh feed. Runs every day
+# (not just Sunday) so an ongoing core update is reflected within 24h and the
+# weekly orchestrator (Mon 06:00) also sees current events.
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=nichefinder-runner@algorithm-events-ingest.service
+
+[Install]
+WantedBy=timers.target
