@@ -24,6 +24,7 @@ Every external API the engine touches. For each: auth pattern, rate limits, endp
 | Vercel Domains | API token | Per project | Generous | Attach domains to multi-tenant project |
 | Cloudflare DNS | API token | Free | Generous | Create zones, records, DNSSEC |
 | Google Search Console | Service account JSON | Free | 1,200 req/min global | Branded search detection, organic clicks, manual actions |
+| Google Search Status | None (public feed) | Free | Be polite (daily) | Ranking-update windows (core/spam/reviews/HCU) for promotion-gate criterion 6 |
 | Plausible | Site API key | Per stats plan | Generous | Cookieless analytics per tenant |
 | PostHog (EU) | Project API key | Free tier 1M events/mo | Generous | Funnel + cohort |
 | Resend | API key | Free tier 100/day | Generous | Transactional email only |
@@ -252,6 +253,22 @@ These rates shift. Pull current rates from the partner dashboard at the start of
 **Use case:** before registering any domain or accepting any brand candidate, screen against EUIPO + BOIP trademark registers. The Scoring Agent calls this; a hit on Nice classes 9 / 35 / 41 / 42 (most affiliate-relevant) returns a hard block.
 
 **Implementation note:** since the API is the search backing the UI rather than a documented public API, build the wrapper defensively. Cache hits aggressively; revisit only when registering a domain (months later).
+
+---
+
+## Google Search Status — ranking-update windows
+
+**Auth:** None — public feed. `https://status.search.google.com` robots.txt is `User-agent: * / Allow: /` (verified 2026-06); we still send the project User-Agent.
+
+**Endpoint:** `https://status.search.google.com/incidents.json` — a JSON array of Search incident objects. Fields used: `id`, `external_desc`, `service_name`, `begin`, `end`, `affected_products[].title`. `end` is absent while a rollout is still ongoing.
+
+**Use case:** **promotion-gate criterion 6** (`docs/PROMOTION_GATE.md` #6, "no active Google update window") and the weekly orchestrator review. The ingestion keeps only incidents affecting the **Ranking** product (core / spam / reviews / helpful-content updates, plus ranking disruptions) and drops Serving / Crawling / Indexing outages.
+
+**Implementation:** `apps/scrapers/src/sources/google-search-status/` fetches + Zod-validates the feed (passthrough — Google evolves the shape); the pure shared helper `mapSearchStatusIncidents` classifies `kind` and maps timestamps; `apps/scrapers/src/jobs/algorithmEventsIngest.ts` upserts into `algorithm_events` keyed on `(source, external_id)` (migration 0012), so re-runs are idempotent and an ongoing update's `ended_at` is filled in once Google closes it. Hand-seeded rows (NULL `external_id`) are never touched.
+
+**Cadence:** daily, **before** `promotion-once` (Sun 04:00 NL). An empty feed is the safe default — no overlapping event means criterion 6 passes, exactly as before ingestion existed.
+
+**Quirk:** the feed is conservative on purpose — a ranking *disruption* (not just an announced update) also counts, because criterion 6 errs toward blocking a promotion during volatility (CLAUDE.md #10).
 
 ---
 
