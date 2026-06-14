@@ -9,6 +9,7 @@
 // IndexNow / GSC submission (the push half of 4.4.3) is deferred — it needs the
 // IndexNow key + outward calls, better wired with operator config.
 
+import { buildSitemapXml } from "@nichefinder/shared";
 import { unstable_cache } from "next/cache";
 import { type NextRequest, NextResponse } from "next/server";
 import { PUBLIC_PAGE_REVALIDATE_SECONDS, tenantTag } from "../../../../lib/cache";
@@ -49,14 +50,6 @@ function loadPublishedPaths(tenantSlug: string): Promise<SitemapRow[]> {
   })();
 }
 
-function xmlEscape(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 interface RouteContext {
   params: Promise<{ tenant_slug: string }>;
 }
@@ -66,15 +59,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const origin = new URL(request.url).origin;
   const rows = await loadPublishedPaths(tenant_slug);
 
-  const urls = rows
-    .map((r) => {
-      const loc = xmlEscape(`${origin}${r.full_path}`);
-      const lastmod = r.updated_at ? `\n    <lastmod>${r.updated_at.slice(0, 10)}</lastmod>` : "";
-      return `  <url>\n    <loc>${loc}</loc>${lastmod}\n  </url>`;
-    })
-    .join("\n");
-
-  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+  const body = buildSitemapXml(
+    origin,
+    rows.map((r) => ({ path: r.full_path, lastmod: r.updated_at })),
+  );
 
   return new NextResponse(body, {
     headers: {
