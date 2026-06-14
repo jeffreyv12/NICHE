@@ -100,6 +100,9 @@ export class TransipClient {
     if (!res.ok) {
       throw new Error(`TransIP ${method} ${path} failed: ${res.status} ${text}`);
     }
+    // TransIP answers successful writes (register domain, add DNS entry) with
+    // 201 Created and an empty body — guard against JSON.parse("") throwing.
+    if (!text) return undefined as T;
     return JSON.parse(text) as T;
   }
 
