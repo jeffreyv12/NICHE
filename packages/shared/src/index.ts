@@ -17,3 +17,4 @@ export * from "./nicheMonthlyMetrics";
 export * from "./gscPageMetrics";
 export * from "./algorithmEvents";
 export * from "./searchStatusEvents";
+export * from "./klaroConfig";
