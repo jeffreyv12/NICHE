@@ -3,10 +3,7 @@
 //
 // Per-tenant override: `tenants.config.affiliate.disclosureText.{nl,en}`.
 
-const DEFAULT_NL =
-  "Deze pagina bevat affiliate links. Als je via een link iets koopt ontvangen wij een commissie, zonder extra kosten voor jou.";
-const DEFAULT_EN =
-  "This page contains affiliate links. If you buy something through them we earn a small commission at no extra cost to you.";
+import { resolveAffiliateDisclosure } from "@nichefinder/shared";
 
 export function AffiliateDisclosure({
   textNl,
@@ -15,6 +12,7 @@ export function AffiliateDisclosure({
   textNl?: string;
   textEn?: string;
 }) {
+  const { nl, en } = resolveAffiliateDisclosure({ nl: textNl, en: textEn });
   return (
     <div
       className="disclosure"
@@ -26,10 +24,10 @@ export function AffiliateDisclosure({
       aria-label="affiliate disclosure"
     >
       <p style={{ margin: 0 }} lang="nl">
-        {textNl ?? DEFAULT_NL}
+        {nl}
       </p>
       <p style={{ margin: "0.25rem 0 0" }} lang="en">
-        <small>{textEn ?? DEFAULT_EN}</small>
+        <small>{en}</small>
       </p>
     </div>
   );
