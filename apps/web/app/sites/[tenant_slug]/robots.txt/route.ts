@@ -5,6 +5,7 @@
 // no crawl value and keeps bots out of the click log), allows everything else,
 // and points crawlers at the tenant sitemap.
 
+import { buildRobotsTxt } from "@nichefinder/shared";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -13,15 +14,7 @@ export const revalidate = 86_400;
 
 export function GET(request: NextRequest) {
   const origin = new URL(request.url).origin;
-  const body = [
-    "User-agent: *",
-    "Disallow: /test/",
-    "Disallow: /r/",
-    "Allow: /",
-    "",
-    `Sitemap: ${origin}/sitemap.xml`,
-    "",
-  ].join("\n");
+  const body = buildRobotsTxt(origin);
 
   return new NextResponse(body, {
     headers: {
