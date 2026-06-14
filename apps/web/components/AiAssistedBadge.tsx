@@ -1,6 +1,8 @@
 // AI-assisted badge near every byline + JSON-LD aiContentDeclaration.
 // Required by EU AI Act Article 50 (effective 2026-08). CLAUDE.md non-negotiable #4.
 
+import { AI_BADGE_DEFAULT_TEXT, buildAiContentDeclaration } from "@nichefinder/shared";
+
 interface Props {
   /** Optional human author name to render alongside the badge. */
   authorName?: string;
@@ -9,18 +11,8 @@ interface Props {
 }
 
 export function AiAssistedBadge({ authorName, badgeText }: Props) {
-  const text = badgeText ?? "AI-assisted — geredigeerd door redactie";
-
-  const jsonld = {
-    "@context": "https://schema.org",
-    "@type": "CreativeWork",
-    aiContentDeclaration: {
-      isPartiallyGenerated: true,
-      generator: "Anthropic Claude",
-      humanInTheLoop: true,
-    },
-    author: authorName ? { "@type": "Person", name: authorName } : undefined,
-  };
+  const text = badgeText ?? AI_BADGE_DEFAULT_TEXT;
+  const jsonld = buildAiContentDeclaration({ authorName });
 
   return (
     <>
