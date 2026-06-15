@@ -20,3 +20,4 @@ export * from "./searchStatusEvents";
 export * from "./klaroConfig";
 export * from "./seoArtifacts";
 export * from "./disclosures";
+export * from "./promotedRedirect";
