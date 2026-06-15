@@ -7,6 +7,7 @@
 // Tenant lookup is cached in KV with 60s TTL (see lib/tenants.ts), so the
 // per-request cost is negligible after the first hit per cache window.
 
+import { buildPromotedRedirectTarget } from "@nichefinder/shared";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   getRedirectForSubfolder,
@@ -64,8 +65,15 @@ export async function middleware(request: NextRequest) {
     if (prefix) {
       const redirect = await getRedirectForSubfolder(prefix);
       if (redirect) {
-        const remainder = pathname.slice(prefix.length) || "/";
-        const target = `https://${redirect.hostname}${remainder}`;
+        // Preserve the path remainder AND the query string across the 308
+        // (a permanent redirect is browser-cached, so a dropped query is lost
+        // for good — see @nichefinder/shared/promotedRedirect).
+        const target = buildPromotedRedirectTarget({
+          hostname: redirect.hostname,
+          pathname,
+          prefix,
+          search: request.nextUrl.search,
+        });
         return NextResponse.redirect(target, 308);
       }
     }
