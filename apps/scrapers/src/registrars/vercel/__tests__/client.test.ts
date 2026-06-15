@@ -105,4 +105,18 @@ describe("VercelClient", () => {
 
     await expect(client.attachDomain("example.com")).rejects.toThrow(/403 forbidden/);
   });
+
+  it("omits teamId from the URL on personal accounts (no teamId provided)", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ name: "example.com", verified: false }),
+    );
+    // Personal accounts pass no teamId — it must not appear in the request URL.
+    const client = new VercelClient({ apiToken: "vc_token", projectId: "prj_1", fetch: fetchImpl });
+
+    await client.attachDomain("example.com");
+
+    const [url] = fetchImpl.mock.calls[0] ?? [];
+    expect(url).toBe("https://api.vercel.com/v9/projects/prj_1/domains");
+    expect(String(url)).not.toContain("teamId");
+  });
 });
