@@ -31,6 +31,18 @@ const config: NextConfig = {
   experimental: {
     // Will revisit Turbopack production builds once it's stable for this stack.
   },
+  // Webpack doesn't natively handle the node: URI scheme (e.g. "node:crypto").
+  // Strip the prefix so the bare module name ("crypto") resolves correctly.
+  // This lets us keep the node: prefix that Biome's useNodejsImportProtocol rule
+  // requires without triggering UnhandledSchemeError at build time.
+  webpack(config, { webpack }) {
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
+        resource.request = resource.request.replace(/^node:/, "");
+      }),
+    );
+    return config;
+  },
   // Security headers (baseline; tenant-specific CSP injected in middleware later)
   async headers() {
     return [
