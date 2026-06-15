@@ -8,7 +8,12 @@ export type FetchFn = typeof fetch;
 
 export interface VercelClientOptions {
   apiToken: string;
-  teamId: string;
+  /**
+   * Vercel team ID (`team_…`). Required for team accounts; omit or leave
+   * empty for personal accounts — the Vercel API ignores `teamId` for
+   * personal tokens, so including it would cause a 403.
+   */
+  teamId?: string;
   projectId: string;
   fetch?: FetchFn;
 }
@@ -28,20 +33,23 @@ const VERCEL_BASE = "https://api.vercel.com";
 
 export class VercelClient {
   private token: string;
-  private teamId: string;
+  private teamId: string | undefined;
   private projectId: string;
   private fetch: FetchFn;
 
   constructor(opts: VercelClientOptions) {
     this.token = opts.apiToken;
-    this.teamId = opts.teamId;
+    this.teamId = opts.teamId || undefined;
     this.projectId = opts.projectId;
     this.fetch = opts.fetch ?? globalThis.fetch;
   }
 
   private qs(extra?: Record<string, string>): string {
-    const p = new URLSearchParams({ teamId: this.teamId, ...extra });
-    return `?${p.toString()}`;
+    const params: Record<string, string> = { ...extra };
+    if (this.teamId) params.teamId = this.teamId;
+    const p = new URLSearchParams(params);
+    const qs = p.toString();
+    return qs ? `?${qs}` : "";
   }
 
   private async req<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -115,10 +123,11 @@ export class VercelClient {
 
 export function createVercelClient(overrideFetch?: FetchFn): VercelClient {
   const apiToken = process.env.VERCEL_API_TOKEN;
-  const teamId = process.env.VERCEL_TEAM_ID;
   const projectId = process.env.VERCEL_PROJECT_ID;
-  if (!apiToken || !teamId || !projectId) {
-    throw new Error("VERCEL_API_TOKEN, VERCEL_TEAM_ID, VERCEL_PROJECT_ID must be set");
+  if (!apiToken || !projectId) {
+    throw new Error("VERCEL_API_TOKEN and VERCEL_PROJECT_ID must be set");
   }
+  // VERCEL_TEAM_ID is required for team accounts; omit for personal accounts.
+  const teamId = process.env.VERCEL_TEAM_ID || undefined;
   return new VercelClient({ apiToken, teamId, projectId, fetch: overrideFetch });
 }
