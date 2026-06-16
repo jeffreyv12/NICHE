@@ -9,8 +9,17 @@ import { getServiceRoleSupabase } from "../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+interface NicheRow {
+  id: string;
+  topic: string;
+  state: string;
+  score: number | null;
+  updated_at: string;
+}
+
 interface DashboardData {
-  nicheCounts: Record<string, number>;
+  niches: NicheRow[];
+  killFlagNicheIds: Set<string>;
   pendingPages: number;
   openKillFlags: number;
   pendingMigrations: number;
@@ -34,11 +43,14 @@ async function loadDashboard(): Promise<DashboardData> {
 
   const [nichesRes, pendingPagesRes, killFlagsRes, migrationsRes, spendRes, runsRes, promotionRes] =
     await Promise.all([
-      supabase.from("niches").select("state"),
+      supabase
+        .from("niches")
+        .select("id, topic, state, score, updated_at")
+        .order("updated_at", { ascending: false }),
       supabase.from("pages").select("id", { count: "exact", head: true }).eq("state", "draft"),
       supabase
         .from("kill_flags")
-        .select("id", { count: "exact", head: true })
+        .select("niche_id")
         .is("confirmed_at", null)
         .is("dismissed_at", null),
       supabase.from("promotion_migrations").select("status"),
@@ -53,10 +65,9 @@ async function loadDashboard(): Promise<DashboardData> {
         .eq("result", "ready"),
     ]);
 
-  const nicheCounts: Record<string, number> = {};
-  for (const row of nichesRes.data ?? []) {
-    nicheCounts[row.state] = (nicheCounts[row.state] ?? 0) + 1;
-  }
+  const killFlagNicheIds = new Set<string>(
+    (killFlagsRes.data ?? []).map((r) => r.niche_id as string).filter(Boolean),
+  );
 
   const migrations = migrationsRes.data ?? [];
   const pendingMigrations = migrations.filter(
@@ -67,9 +78,10 @@ async function loadDashboard(): Promise<DashboardData> {
   const mtdSpendEur = (spendRes.data ?? []).reduce((sum, r) => sum + (r.cost_eur ?? 0), 0);
 
   return {
-    nicheCounts,
+    niches: (nichesRes.data ?? []) as NicheRow[],
+    killFlagNicheIds,
     pendingPages: pendingPagesRes.count ?? 0,
-    openKillFlags: killFlagsRes.count ?? 0,
+    openKillFlags: killFlagNicheIds.size,
     pendingMigrations,
     failedMigrations,
     mtdSpendEur,
@@ -79,7 +91,8 @@ async function loadDashboard(): Promise<DashboardData> {
   };
 }
 
-const NICHE_STATE_ORDER = ["discovery", "validating", "building", "mature", "promoted", "killed"];
+// States shown as kanban columns (with niche cards); "killed" is count-only.
+const KANBAN_STATES = ["discovery", "validating", "building", "mature", "promoted"] as const;
 
 const NICHE_STATE_COLOR: Record<string, string> = {
   discovery: "#3b82f6",
@@ -89,6 +102,10 @@ const NICHE_STATE_COLOR: Record<string, string> = {
   promoted: "#06b6d4",
   killed: "#ef4444",
 };
+
+function daysAgo(isoDate: string): number {
+  return Math.floor((Date.now() - new Date(isoDate).getTime()) / 86_400_000);
+}
 
 export default async function AdminDashboard() {
   const d = await loadDashboard();
@@ -167,52 +184,202 @@ export default async function AdminDashboard() {
         </div>
       </div>
 
-      {/* Niche pipeline */}
-      <div
-        style={{
-          border: "1px solid #e5e5e5",
-          borderRadius: "0.5rem",
-          padding: "1rem",
-          maxWidth: 560,
-        }}
-      >
+      {/* Niche pipeline kanban */}
+      <div>
         <p style={{ fontSize: "0.8125rem", color: "#737373", marginBottom: "0.75rem" }}>
           Niche pipeline
         </p>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          {NICHE_STATE_ORDER.map((state) => {
-            const count = d.nicheCounts[state] ?? 0;
-            if (count === 0) return null;
+        <div
+          style={{ display: "flex", gap: "0.75rem", overflowX: "auto", paddingBottom: "0.5rem" }}
+        >
+          {KANBAN_STATES.map((state) => {
+            const niches = d.niches.filter((n) => n.state === state);
+            const color = NICHE_STATE_COLOR[state] ?? "#737373";
             return (
-              <Link
+              <div
                 key={state}
-                href={`/admin/niches?state=${state}`}
-                style={{ textDecoration: "none" }}
+                style={{
+                  minWidth: 180,
+                  maxWidth: 220,
+                  flexShrink: 0,
+                  background: "#fafafa",
+                  border: "1px solid #e5e5e5",
+                  borderRadius: "0.5rem",
+                  overflow: "hidden",
+                }}
               >
-                <div
-                  style={{
-                    background: `${NICHE_STATE_COLOR[state]}18`,
-                    border: `1px solid ${NICHE_STATE_COLOR[state]}`,
-                    borderRadius: "0.375rem",
-                    padding: "0.4rem 0.75rem",
-                    textAlign: "center",
-                  }}
-                >
+                {/* Column header */}
+                <Link href={`/admin/niches?state=${state}`} style={{ textDecoration: "none" }}>
                   <div
                     style={{
-                      fontSize: "1.25rem",
-                      fontWeight: 700,
-                      color: NICHE_STATE_COLOR[state],
+                      background: `${color}14`,
+                      borderBottom: `2px solid ${color}`,
+                      padding: "0.5rem 0.75rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
                     }}
                   >
-                    {count}
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {state}
+                    </span>
+                    <span
+                      style={{
+                        background: color,
+                        color: "#fff",
+                        borderRadius: "9999px",
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        padding: "0 0.4rem",
+                        lineHeight: "1.4rem",
+                      }}
+                    >
+                      {niches.length}
+                    </span>
                   </div>
-                  <div style={{ fontSize: "0.6875rem", color: "#525252" }}>{state}</div>
+                </Link>
+
+                {/* Cards */}
+                <div
+                  style={{
+                    padding: "0.5rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  {niches.length === 0 && (
+                    <p
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#a3a3a3",
+                        textAlign: "center",
+                        padding: "0.75rem 0",
+                      }}
+                    >
+                      —
+                    </p>
+                  )}
+                  {niches.map((niche) => {
+                    const hasKillFlag = d.killFlagNicheIds.has(niche.id);
+                    const days = daysAgo(niche.updated_at);
+                    const cardBorder = hasKillFlag ? "1px solid #f59e0b" : "1px solid #e5e5e5";
+                    return (
+                      <Link
+                        key={niche.id}
+                        href={`/admin/niches/${niche.id}`}
+                        style={{ textDecoration: "none" }}
+                      >
+                        <div
+                          style={{
+                            background: "#fff",
+                            border: cardBorder,
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.625rem",
+                          }}
+                        >
+                          {/* Topic + kill-flag dot */}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: "0.25rem",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            {hasKillFlag && (
+                              <span
+                                style={{
+                                  color: "#f59e0b",
+                                  fontSize: "0.625rem",
+                                  lineHeight: "1.4",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                ●
+                              </span>
+                            )}
+                            <span
+                              style={{
+                                fontSize: "0.8125rem",
+                                fontWeight: 600,
+                                color: "#111",
+                                lineHeight: 1.3,
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {niche.topic}
+                            </span>
+                          </div>
+                          {/* Score + age badges */}
+                          <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
+                            {niche.score !== null && (
+                              <span
+                                style={{
+                                  background: "#f5f5f5",
+                                  border: "1px solid #e5e5e5",
+                                  borderRadius: "0.25rem",
+                                  fontSize: "0.6875rem",
+                                  color: "#525252",
+                                  padding: "0 0.3rem",
+                                }}
+                              >
+                                {niche.score}/100
+                              </span>
+                            )}
+                            <span
+                              style={{
+                                background: days > 14 ? "#fef3c7" : "#f5f5f5",
+                                border: `1px solid ${days > 14 ? "#fbbf24" : "#e5e5e5"}`,
+                                borderRadius: "0.25rem",
+                                fontSize: "0.6875rem",
+                                color: days > 14 ? "#92400e" : "#737373",
+                                padding: "0 0.3rem",
+                              }}
+                            >
+                              {days}d
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
+
+        {/* Killed — count only, not a full column */}
+        {(() => {
+          const killedCount = d.niches.filter((n) => n.state === "killed").length;
+          if (killedCount === 0) return null;
+          return (
+            <div style={{ marginTop: "0.75rem" }}>
+              <Link href="/admin/niches?state=killed" style={{ textDecoration: "none" }}>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#ef4444",
+                    border: "1px solid #ef444440",
+                    borderRadius: "0.375rem",
+                    padding: "0.25rem 0.625rem",
+                    background: "#ef444408",
+                  }}
+                >
+                  {killedCount} killed
+                </span>
+              </Link>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
