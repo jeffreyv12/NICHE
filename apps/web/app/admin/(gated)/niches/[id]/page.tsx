@@ -204,6 +204,32 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleString("nl-NL", { dateStyle: "short", timeStyle: "short" });
 }
 
+function fmtMonth(isoMonth: string): string {
+  return new Date(isoMonth).toLocaleDateString("nl-NL", { month: "long", year: "numeric" });
+}
+
+// ---------------------------------------------------------------------------
+// Monthly metrics (Phase 5.4 / promotion gate C1+C2)
+// ---------------------------------------------------------------------------
+
+interface MonthlyMetricRow {
+  month: string;
+  revenue_eur: string;
+  conversions_count: number;
+  organic_clicks: number | null;
+}
+
+async function loadMonthlyMetrics(nicheId: string): Promise<MonthlyMetricRow[]> {
+  const supabase = getServiceRoleSupabase();
+  const { data } = await supabase
+    .from("niche_monthly_metrics")
+    .select("month, revenue_eur, conversions_count, organic_clicks")
+    .eq("niche_id", nicheId)
+    .order("month", { ascending: false })
+    .limit(6);
+  return (data ?? []) as MonthlyMetricRow[];
+}
+
 function StateBadge({ state }: { state: string }) {
   const colours: Record<string, string> = {
     draft: "#f59e0b",
@@ -233,7 +259,7 @@ function StateBadge({ state }: { state: string }) {
 export default async function AdminNicheDetailPage({ params }: { params: Promise<RouteParams> }) {
   await requireAdmin();
   const { id } = await params;
-  const data = await load(id);
+  const [data, monthlyMetrics] = await Promise.all([load(id), loadMonthlyMetrics(id)]);
   if (!data) notFound();
   const { niche, pages, validation, promotion, claimChecks, tests, killFlag } = data;
 
@@ -286,6 +312,7 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
         ) : null}
       </section>
 
+      <MonthlyMetricsPanel rows={monthlyMetrics} />
       <ValidationSection niche={niche} validation={validation} />
       <PromotionSection promotion={promotion} />
 
@@ -389,6 +416,110 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
         )}
       </section>
     </article>
+  );
+}
+
+// Promotion gate thresholds (PROMOTION_GATE.md C1 + C2).
+const PROMO_REVENUE_EUR = 150;
+const PROMO_CLICKS = 1_500;
+
+function MonthlyMetricsPanel({ rows }: { rows: MonthlyMetricRow[] }) {
+  return (
+    <section style={{ marginBottom: "1.5rem" }}>
+      <h2 style={{ fontSize: "1rem", marginBottom: "0.25rem" }}>Maandelijkse metrics</h2>
+      <p style={{ fontSize: "0.75rem", color: "#737373", marginBottom: "0.5rem" }}>
+        Drempelwaarden (promotie-gate C1/C2): omzet ≥ €{PROMO_REVENUE_EUR}/mo · organische clicks ≥{" "}
+        {PROMO_CLICKS.toLocaleString("nl-NL")}/mo
+      </p>
+
+      {rows.length === 0 ? (
+        <p style={{ fontSize: "0.875rem", color: "#737373" }}>
+          Nog geen maanddata. Het rollup-job (<code>niche-monthly-metrics-once</code>) draait
+          dagelijks 03:00 NL.
+        </p>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+          <thead>
+            <tr style={{ textAlign: "left", borderBottom: "2px solid #e5e5e5" }}>
+              <th style={{ padding: "0.25rem 0.75rem 0.375rem 0", fontWeight: 600 }}>Maand</th>
+              <th
+                style={{ padding: "0.25rem 0.75rem 0.375rem", textAlign: "right", fontWeight: 600 }}
+              >
+                Omzet
+              </th>
+              <th
+                style={{ padding: "0.25rem 0.75rem 0.375rem", textAlign: "right", fontWeight: 600 }}
+              >
+                Conversies
+              </th>
+              <th
+                style={{
+                  padding: "0.25rem 0 0.375rem 0.75rem",
+                  textAlign: "right",
+                  fontWeight: 600,
+                }}
+              >
+                Org. clicks
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const rev = Number(row.revenue_eur);
+              const revOk = rev >= PROMO_REVENUE_EUR;
+              const clicksOk = row.organic_clicks !== null && row.organic_clicks >= PROMO_CLICKS;
+              return (
+                <tr key={row.month} style={{ borderTop: "1px solid #f5f5f5" }}>
+                  <td
+                    style={{
+                      padding: "0.3rem 0.75rem 0.3rem 0",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {fmtMonth(row.month)}
+                  </td>
+                  <td
+                    style={{
+                      padding: "0.3rem 0.75rem",
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                      color: revOk ? "#059669" : rev > 0 ? "#111" : "#a3a3a3",
+                      fontWeight: revOk ? 600 : 400,
+                    }}
+                  >
+                    {revOk ? "✓ " : ""}€{rev.toFixed(2).replace(".", ",")}
+                  </td>
+                  <td
+                    style={{
+                      padding: "0.3rem 0.75rem",
+                      textAlign: "right",
+                      color: "#737373",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {row.conversions_count}
+                  </td>
+                  <td
+                    style={{
+                      padding: "0.3rem 0 0.3rem 0.75rem",
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                      color:
+                        row.organic_clicks === null ? "#a3a3a3" : clicksOk ? "#059669" : "#111",
+                      fontWeight: clicksOk ? 600 : 400,
+                    }}
+                  >
+                    {row.organic_clicks === null
+                      ? "—"
+                      : `${clicksOk ? "✓ " : ""}${row.organic_clicks.toLocaleString("nl-NL")}`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 

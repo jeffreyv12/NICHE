@@ -89,6 +89,8 @@ export async function runOrchestratorJob(
       week_of: weekOf,
     });
 
+  await opts.db.update(agentRuns).set({ outputJson: output }).where(eq(agentRuns.id, agentRunId));
+
   let webhookPosted = false;
   const webhookUrl = opts.slackWebhookUrl ?? opts.discordWebhookUrl;
   if (webhookUrl) {
