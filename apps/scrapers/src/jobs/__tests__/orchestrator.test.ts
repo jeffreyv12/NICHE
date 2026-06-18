@@ -98,9 +98,15 @@ function makeSnapshot(input: orchestratorAgent.OrchestratorInput): PortfolioSnap
   return { buildInput: async () => input };
 }
 
+function makeMockDb() {
+  const chain = { set: vi.fn(), where: vi.fn().mockResolvedValue(undefined) };
+  chain.set.mockReturnValue(chain);
+  return { update: vi.fn().mockReturnValue(chain) };
+}
+
 function makeOpts(overrides: Partial<RunOrchestratorJobOptions> = {}): RunOrchestratorJobOptions {
   return {
-    db: {} as never,
+    db: makeMockDb() as never,
     runtime: {} as never,
     snapshot: makeSnapshot(makeInput()),
     ...overrides,

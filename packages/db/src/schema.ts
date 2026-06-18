@@ -602,6 +602,7 @@ export const agentRuns = pgTable(
     batchId: text("batch_id"),
     inputHash: text("input_hash"),
     outputHash: text("output_hash"),
+    outputJson: jsonb("output_json"),
   },
   (t) => ({
     agentStartedIdx: index("agent_runs_agent_started_idx").on(t.agent, t.startedAt),
