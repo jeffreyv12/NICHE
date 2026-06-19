@@ -1,5 +1,5 @@
-// Phase 3.2 / 5.4 support — per-niche organic-click attribution (the GSC
-// page-dimension follow-up flagged as TODO(gsc-page-dim) in nicheMonthlyMetrics).
+// Phase 3.2 / 5.4 support — per-niche organic-click attribution via the GSC
+// page dimension (feeds niche_monthly_metrics.organic_clicks, Promotion Gate C2).
 //
 // gsc_metrics is TENANT-grain (unique on tenant_id+date), so it can answer "how
 // many organic clicks did this *site* get" but never "...this *niche*". This
