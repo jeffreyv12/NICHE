@@ -32,6 +32,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <Link href="/admin/promotions">Promotions</Link>
           <Link href="/admin/migrations">Migrations</Link>
           <Link href="/admin/orchestrator">Orchestrator</Link>
+          <Link href="/admin/jobs">Jobs</Link>
           <Link href="/admin/costs">Costs</Link>
         </nav>
         <span style={{ fontSize: "0.875rem", color: "#525252" }}>{admin.email}</span>
