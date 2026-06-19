@@ -11,10 +11,9 @@
 // result. Revenue counts only *countable* conversions — same policy as the
 // validation/kill signals (approved-only by default; see webhooks.ts).
 //
-// SCOPE NOTE: this rollup covers REVENUE only. Per-niche organic clicks are not
-// yet derivable — `gsc_metrics` is tenant-grain (unique on tenant_id+date) and
-// the GSC pull does not request the `page` dimension. Clicks are left to a
-// follow-up that adds page-level GSC attribution. TODO(gsc-page-dim).
+// SCOPE: revenue only. Per-niche organic clicks are handled separately in
+// gscPageMetrics.ts (rollupNicheMonthlyOrganicClicks), which attributes
+// page-grain GSC rows to niches via pages.full_path.
 
 import { canonicalConversionStatus, conversionCountsAsRevenue } from "./webhooks";
 
