@@ -124,7 +124,7 @@ export class DataForSeoClient {
 }
 
 // ---------------------------------------------------------------------------
-// Default retry policy — TODO(user)
+// Default retry policy
 // ---------------------------------------------------------------------------
 
 // Retry only on 429 and 5xx; network errors (no httpStatus) also retryable.
