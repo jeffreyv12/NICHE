@@ -19,6 +19,14 @@ import {
 import { eq, sql } from "drizzle-orm";
 
 async function main() {
+  // Load root .env.local — tsx doesn't auto-load it; falls through on Vercel/CI.
+  try {
+    const path = await import("node:path");
+    process.loadEnvFile(path.resolve(process.cwd(), "../../.env.local"));
+  } catch {
+    // not present or Node < 22 — rely on platform env
+  }
+
   const hostname = process.env.PRIMARY_TENANT_HOSTNAME?.trim().toLowerCase();
   if (!hostname) {
     console.error("PRIMARY_TENANT_HOSTNAME is required.");
@@ -108,7 +116,7 @@ async function seedDemoData(db: ReturnType<typeof getServiceDb>, mainTenantId: s
   // 3 demo niche candidates in different pipeline states
   const demoNiches = [
     { topic: "Koffiezetapparaten", topicSlug: "koffiezetapparaten", state: "building" as const },
-    { topic: "Staande Bureaus", topicSlug: "staande-bureaus", state: "validation" as const },
+    { topic: "Staande Bureaus", topicSlug: "staande-bureaus", state: "validating" as const },
     {
       topic: "Ergonomische Stoelen",
       topicSlug: "ergonomische-stoelen",
@@ -153,7 +161,7 @@ async function seedDemoData(db: ReturnType<typeof getServiceDb>, mainTenantId: s
         topicSlug: n.topicSlug,
         state: n.state,
         killedAt: n.state === "killed" ? new Date() : undefined,
-        killReason: n.state === "killed" ? "low_commercial_intent" : undefined,
+        killReason: n.state === "killed" ? "other" : undefined,
       })
       .onConflictDoNothing({ target: niches.topicSlug })
       .returning({ id: niches.id })) as [{ id: string } | undefined];
