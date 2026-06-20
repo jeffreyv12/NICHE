@@ -280,7 +280,7 @@ export default async function JobsPage() {
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>Jobs</h1>
       <p style={{ color: "#737373", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
         Overzicht van alle achtergrond-jobs. Klik "Nu starten" om een job in de wachtrij te
-        plaatsen; de Hetzner dispatcher verwerkt hem binnen 30 s (zie RUNBOOK.md §6).
+        plaatsen; de Hetzner dispatcher verwerkt hem binnen 30 s (zie RUNBOOK.md §11).
       </p>
 
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>

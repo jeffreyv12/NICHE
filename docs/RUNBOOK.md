@@ -283,5 +283,73 @@ Categories: `vercel`, `supabase`, `hetzner`, `dataforseo`, `registrar`, `other`.
 
 ---
 
-*Last updated: 2026-06-07. Update this file whenever a new alert type or
+---
+
+## 11. Admin job-trigger dispatcher
+
+The dispatcher is a persistent systemd service that lets the admin UI queue
+one-off job runs without SSH access. The web app inserts a `job_triggers` row;
+the dispatcher picks it up within 30 s and spawns the matching bin.
+
+### 11a. Enable on a fresh Hetzner instance
+
+```bash
+ssh hetzner
+# Copy the unit file (deploy.sh does this on subsequent deploys)
+sudo cp /opt/nichefinder/infra/hetzner/systemd/nichefinder-job-dispatcher.service \
+        /etc/systemd/system/
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now nichefinder-job-dispatcher.service
+systemctl status nichefinder-job-dispatcher.service
+```
+
+### 11b. Check dispatcher status
+
+```bash
+ssh hetzner
+systemctl status nichefinder-job-dispatcher.service
+journalctl -u nichefinder-job-dispatcher.service -n 50 --no-pager
+```
+
+The log line `[dispatcher] started — polling every 30s` confirms it is running.
+Each spawned job logs `[dispatcher] job <id> done (exit 0)` or `failed (exit N)`.
+
+### 11c. Dispatcher is down / not polling
+
+```bash
+ssh hetzner
+sudo systemctl restart nichefinder-job-dispatcher.service
+# Then verify in the admin UI that a "Nu starten" trigger shows up as done/failed.
+```
+
+Triggers queued while the dispatcher was down remain in `status='queued'` and
+are picked up automatically when it restarts — no data loss.
+
+### 11d. A triggered job is stuck in `status='running'`
+
+The bin was spawned but never exited (or the dispatcher restarted mid-job).
+Check the journal for the job's output, then manually update the row:
+
+```sql
+update job_triggers
+set status = 'failed',
+    error  = 'stuck — manually reset',
+    finished_at = now()
+where id = '<trigger-id>';
+```
+
+Then re-queue from the admin UI if needed.
+
+### 11e. Adding a new triggerable job
+
+1. Add the `id` to `ALLOWED_JOBS` in `apps/scrapers/src/jobs/dispatcher.ts`.
+2. Add the same `id` to `ALLOWED_JOB_IDS` in `apps/web/app/admin/(gated)/jobs/actions.ts`.
+3. Add a `JobMeta` entry to the `JOBS` array in `apps/web/app/admin/(gated)/jobs/page.tsx`.
+4. Ensure the bin compiles to `dist/bin/<id>-once.js`.
+5. Deploy scrapers + web; restart the dispatcher.
+
+---
+
+*Last updated: 2026-06-20. Update this file whenever a new alert type or
 operational procedure is added.*
