@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { NextConfig } from "next";
 
 // Single source of truth for env is the monorepo-root .env.local (CLAUDE.md #11).
@@ -27,22 +26,9 @@ const config: NextConfig = {
     "@nichefinder/agent-sdk",
     "@nichefinder/ui",
   ],
-  // Public env exposure is opt-in: only NEXT_PUBLIC_* surface; nothing else.
-  experimental: {
-    // Will revisit Turbopack production builds once it's stable for this stack.
-  },
-  // Webpack doesn't natively handle the node: URI scheme (e.g. "node:crypto").
-  // Strip the prefix so the bare module name ("crypto") resolves correctly.
-  // This lets us keep the node: prefix that Biome's useNodejsImportProtocol rule
-  // requires without triggering UnhandledSchemeError at build time.
-  webpack(config, { webpack }) {
-    config.plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
-        resource.request = resource.request.replace(/^node:/, "");
-      }),
-    );
-    return config;
-  },
+  // Turbopack is default in Next.js 16. Declare an empty config to acknowledge
+  // this and suppress the "webpack config with no turbopack config" error.
+  turbopack: {},
   // Security headers (baseline; tenant-specific CSP injected in middleware later)
   async headers() {
     return [
