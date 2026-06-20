@@ -12,15 +12,19 @@
 
 import { getServiceDb } from "@nichefinder/db";
 import { runPromotionJob } from "../jobs/promotion.js";
+import { tryCreateRegistrarDomainAdapter } from "../registrars/domainAdapter.js";
 
 async function main(): Promise<void> {
   const db = getServiceDb();
   const monthlyBudgetEur = Number(process.env.CLAUDE_MONTHLY_BUDGET_EUR ?? 200);
   const perCallCapEur = Number(process.env.CLAUDE_PER_CALL_CAP_EUR ?? 10);
 
+  const domainAdapter = await tryCreateRegistrarDomainAdapter();
+
   const result = await runPromotionJob({
     db,
     runtime: { db, monthlyBudgetEur, perCallCapEur },
+    domainAdapter,
   });
 
   process.stdout.write(`${JSON.stringify({ event: "promotion_job.done", ...result }, null, 2)}\n`);
