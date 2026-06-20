@@ -200,6 +200,269 @@ describe("runPromotionJob", () => {
     expect(candidates.every((c) => c.available === false)).toBe(true);
   });
 
+  // -------------------------------------------------------------------------
+  // Eligibility filtering
+  // -------------------------------------------------------------------------
+
+  describe("eligibility filtering", () => {
+    function makeNiche(overrides: Record<string, unknown> = {}) {
+      return {
+        id: "niche-uuid-001",
+        tenantId: "tenant-uuid-001",
+        topic: "Staandbureau",
+        topicSlug: "staandbureau",
+        state: "mature",
+        buildingStartedAt: new Date("2026-01-01"),
+        matureAt: new Date("2026-03-01"),
+        ...overrides,
+      };
+    }
+
+    function makeNicheDb(
+      niches: object[],
+      recentNicheIds: string[] = [],
+    ): RunPromotionJobOptions["db"] {
+      let selectCall = 0;
+      return {
+        select: () => ({
+          from: () => ({
+            where: () => {
+              selectCall++;
+              if (selectCall === 1)
+                return Promise.resolve(recentNicheIds.map((nicheId) => ({ nicheId })));
+              if (selectCall === 2) return Promise.resolve(niches);
+              return Promise.resolve([{ total: "0", totalClicks: "0", nonBrand: "0" }]);
+            },
+          }),
+        }),
+        insert: () => ({
+          values: () => ({ returning: () => Promise.resolve([{ id: "eval-x" }]) }),
+        }),
+        execute: () => Promise.resolve({ rows: [{ median: "0" }] }),
+      } as unknown as RunPromotionJobOptions["db"];
+    }
+
+    it("excludes a niche evaluated within the cooldown window", async () => {
+      const niche = makeNiche();
+      const db = makeNicheDb([niche], [niche.id]);
+
+      const result = await runPromotionJob(makeOpts({ db }));
+
+      expect(result.considered).toBe(0);
+      expect(result.evaluated).toHaveLength(0);
+      expect(mockedRun).not.toHaveBeenCalled();
+    });
+
+    it("respects the limit parameter", async () => {
+      mockedRun.mockResolvedValue(makeAgentResult("not_ready"));
+      const niche1 = makeNiche({ id: "niche-uuid-001" });
+      const niche2 = makeNiche({ id: "niche-uuid-002", tenantId: "tenant-uuid-002" });
+      const db = makeNicheDb([niche1, niche2]);
+
+      const result = await runPromotionJob(makeOpts({ db, limit: 1 }));
+
+      expect(result.considered).toBe(1);
+      expect(mockedRun).toHaveBeenCalledTimes(1);
+    });
+
+    it("excludes niches with null tenantId", async () => {
+      const db = makeNicheDb([makeNiche({ tenantId: null })]);
+
+      const result = await runPromotionJob(makeOpts({ db }));
+
+      expect(result.considered).toBe(0);
+      expect(mockedRun).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Agent input — niche timing
+  // -------------------------------------------------------------------------
+
+  describe("agent input — niche timing", () => {
+    // asOf = 2026-06-09T04:00:00Z used throughout makeOpts
+
+    function makeTimingDb(niche: object): RunPromotionJobOptions["db"] {
+      let selectCall = 0;
+      return {
+        select: () => ({
+          from: () => ({
+            where: () => {
+              selectCall++;
+              if (selectCall === 1) return Promise.resolve([]);
+              if (selectCall === 2) return Promise.resolve([niche]);
+              return Promise.resolve([{ total: "0", totalClicks: "0", nonBrand: "0" }]);
+            },
+          }),
+        }),
+        insert: () => ({
+          values: () => ({ returning: () => Promise.resolve([{ id: "eval-x" }]) }),
+        }),
+        execute: () => Promise.resolve({ rows: [{ median: "0" }] }),
+      } as unknown as RunPromotionJobOptions["db"];
+    }
+
+    it("calculates daysInState from matureAt when available", async () => {
+      mockedRun.mockResolvedValueOnce(makeAgentResult("not_ready"));
+      const niche = {
+        id: "niche-uuid-t1",
+        tenantId: "tenant-uuid-t1",
+        topic: "T",
+        topicSlug: "t",
+        state: "mature",
+        matureAt: new Date("2026-03-01"), // 100 days before asOf
+        buildingStartedAt: new Date("2025-01-01"),
+      };
+      const db = makeTimingDb(niche);
+
+      await runPromotionJob(makeOpts({ db }));
+
+      const input = mockedRun.mock.calls[0]?.[1];
+      expect(input?.niche.days_in_state).toBe(100);
+    });
+
+    it("falls back to buildingStartedAt when matureAt is null", async () => {
+      mockedRun.mockResolvedValueOnce(makeAgentResult("not_ready"));
+      const niche = {
+        id: "niche-uuid-t2",
+        tenantId: "tenant-uuid-t2",
+        topic: "T",
+        topicSlug: "t",
+        state: "building",
+        matureAt: null,
+        buildingStartedAt: new Date("2026-01-01"), // 159 days before asOf
+      };
+      const db = makeTimingDb(niche);
+
+      await runPromotionJob(makeOpts({ db }));
+
+      const input = mockedRun.mock.calls[0]?.[1];
+      expect(input?.niche.days_in_state).toBe(159);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Result variants
+  // -------------------------------------------------------------------------
+
+  describe("result variants", () => {
+    function makeOneNicheDb(): RunPromotionJobOptions["db"] {
+      let selectCall = 0;
+      const niche = {
+        id: "niche-uuid-v1",
+        tenantId: "tenant-uuid-v1",
+        topic: "V",
+        topicSlug: "v",
+        state: "mature",
+        buildingStartedAt: null,
+        matureAt: new Date("2026-03-01"),
+      };
+      return {
+        select: () => ({
+          from: () => ({
+            where: () => {
+              selectCall++;
+              if (selectCall === 1) return Promise.resolve([]);
+              if (selectCall === 2) return Promise.resolve([niche]);
+              return Promise.resolve([{ total: "0", totalClicks: "0", nonBrand: "0" }]);
+            },
+          }),
+        }),
+        insert: () => ({
+          values: () => ({ returning: () => Promise.resolve([{ id: "eval-v1" }]) }),
+        }),
+        execute: () => Promise.resolve({ rows: [{ median: "0" }] }),
+      } as unknown as RunPromotionJobOptions["db"];
+    }
+
+    it("surfaces result=ready in the evaluated array", async () => {
+      mockedRun.mockResolvedValueOnce(makeAgentResult("ready"));
+      const result = await runPromotionJob(makeOpts({ db: makeOneNicheDb() }));
+      expect(result.evaluated[0]?.result).toBe("ready");
+    });
+
+    it("surfaces result=blocked_by_update_window in the evaluated array", async () => {
+      mockedRun.mockResolvedValueOnce(makeAgentResult("blocked_by_update_window"));
+      const result = await runPromotionJob(makeOpts({ db: makeOneNicheDb() }));
+      expect(result.evaluated[0]?.result).toBe("blocked_by_update_window");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Multi-niche accumulation
+  // -------------------------------------------------------------------------
+
+  describe("multi-niche accumulation", () => {
+    function makeTwoNicheDb(): RunPromotionJobOptions["db"] {
+      const niches = [
+        {
+          id: "niche-m1",
+          tenantId: "tenant-m1",
+          topic: "A",
+          topicSlug: "a",
+          state: "mature",
+          buildingStartedAt: null,
+          matureAt: new Date("2026-03-01"),
+        },
+        {
+          id: "niche-m2",
+          tenantId: "tenant-m2",
+          topic: "B",
+          topicSlug: "b",
+          state: "mature",
+          buildingStartedAt: null,
+          matureAt: new Date("2026-03-01"),
+        },
+      ];
+      let evalId = 0;
+      let selectCall = 0;
+      return {
+        select: () => ({
+          from: () => ({
+            where: () => {
+              selectCall++;
+              if (selectCall === 1) return Promise.resolve([]);
+              if (selectCall === 2) return Promise.resolve(niches);
+              return Promise.resolve([{ total: "0", totalClicks: "0", nonBrand: "0" }]);
+            },
+          }),
+        }),
+        insert: () => ({
+          values: () => ({
+            returning: () => Promise.resolve([{ id: `eval-multi-${++evalId}` }]),
+          }),
+        }),
+        execute: () => Promise.resolve({ rows: [{ median: "0" }] }),
+      } as unknown as RunPromotionJobOptions["db"];
+    }
+
+    it("accumulates totalCostEur across two successful niches", async () => {
+      const r1 = makeAgentResult("not_ready");
+      const r2 = makeAgentResult("not_ready");
+      r1.costEur = 0.1;
+      r2.costEur = 0.2;
+      mockedRun.mockResolvedValueOnce(r1).mockResolvedValueOnce(r2);
+
+      const result = await runPromotionJob(makeOpts({ db: makeTwoNicheDb(), limit: 2 }));
+
+      expect(result.evaluated).toHaveLength(2);
+      expect(result.totalCostEur).toBeCloseTo(0.3);
+    });
+
+    it("records both failures when two niches each throw", async () => {
+      mockedRun
+        .mockRejectedValueOnce(new Error("timeout A"))
+        .mockRejectedValueOnce(new Error("timeout B"));
+
+      const result = await runPromotionJob(makeOpts({ db: makeTwoNicheDb(), limit: 2 }));
+
+      expect(result.evaluated).toHaveLength(0);
+      expect(result.failures).toHaveLength(2);
+      expect(result.failures[0]?.error).toMatch(/timeout A/i);
+      expect(result.failures[1]?.error).toMatch(/timeout B/i);
+    });
+  });
+
   it("injectable domain adapter is used when provided", async () => {
     mockedRun.mockResolvedValueOnce(makeAgentResult("ready"));
 
