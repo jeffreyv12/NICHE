@@ -121,6 +121,9 @@ importers:
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.10.2)(lightningcss@1.32.0)
 
   packages/agent-sdk:
     dependencies:
