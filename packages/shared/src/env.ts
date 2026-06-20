@@ -31,8 +31,13 @@ export const envSchema = z.object({
   APP_ENV: z.enum(["local", "preview", "staging", "production", "test"]).default("local"),
   PRIMARY_TENANT_HOSTNAME: z.string().min(3),
   NEXT_PUBLIC_APP_URL: url,
+  NEXT_PUBLIC_ROOT_DOMAIN: z.string().default(""),
   CLAUDE_MONTHLY_BUDGET_EUR: positiveFloat.default(200),
   CLAUDE_PER_CALL_CAP_EUR: positiveFloat.default(2.5),
+
+  // Vercel KV (tenant-lookup cache; auto-injected by Vercel integration)
+  KV_REST_API_URL: optionalUrl,
+  KV_REST_API_TOKEN: optionalNonEmpty,
 
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: url,
@@ -61,6 +66,16 @@ export const envSchema = z.object({
   // Bol product-feed sync tuning (bol-feed-sync-once on Hetzner; ~100 RPM limit).
   BOL_FEED_SYNC_BATCH_DELAY_MS: positiveInt.default(600),
   BOL_FEED_SYNC_MAX_PRODUCTS: positiveInt.default(500),
+
+  // Batch job limits (scrapers — candidates processed per scheduled run)
+  SCORING_BATCH_LIMIT: positiveInt.default(50),
+  VALIDATION_BATCH_LIMIT: positiveInt.default(20),
+  CONTENT_POLISH_BATCH_LIMIT: positiveInt.default(10),
+  TEST_PAGE_DRAFT_LIMIT: positiveInt.default(5),
+  VALIDATION_WINDOW_DAYS: positiveInt.default(30),
+
+  // Job dispatcher polling interval (ms; default every minute)
+  DISPATCHER_INTERVAL_MS: positiveInt.default(60000),
 
   // Awin
   AWIN_API_TOKEN: optionalNonEmpty,
@@ -105,6 +120,12 @@ export const envSchema = z.object({
   VERCEL_TEAM_ID: optionalNonEmpty,
   VERCEL_PROJECT_ID: optionalNonEmpty,
 
+  // YouTube Data API (discovery agent audience-size signals)
+  YOUTUBE_API_KEY: optionalNonEmpty,
+
+  // Generic Google API key (fallback; prefer per-service keys)
+  GOOGLE_API_KEY: optionalNonEmpty,
+
   // SerpAPI (optional fallback)
   SERPAPI_KEY: optionalNonEmpty,
 
@@ -138,6 +159,8 @@ export const envSchema = z.object({
   SCRAPER_USER_AGENT: z.string().default("NicheFinder/1.0 (+https://example.com/about-bot)"),
   SCRAPER_RATE_LIMIT_PER_HOST_RPS: positiveInt.default(1),
   SCRAPER_PROXY_URL: optionalUrl,
+  NICHEFINDER_ROOT: z.string().default(""),
+  SCRAPERS_BIN_DIR: z.string().default(""),
 
   // R2
   CLOUDFLARE_R2_ACCOUNT_ID: optionalNonEmpty,
