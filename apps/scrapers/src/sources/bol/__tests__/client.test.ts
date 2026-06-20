@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { listTransactions as listAffiliateTransactions } from "../affiliate.js";
 import { searchCatalog } from "../catalog.js";
 import { BolClient } from "../client.js";
 import { BolAuthError, BolError } from "../types.js";
@@ -174,5 +175,91 @@ describe("BolClient request behaviour", () => {
     const client = makeClient({ fetchImpl, maxAttempts: 1 });
     await searchCatalog(client, { searchTerm: "x" });
     expect(seenUA).toMatch(/^NicheFinder\/1\.0/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bol Affiliate Reporting API v2 — listTransactions
+// ---------------------------------------------------------------------------
+
+function tokenAndAffiliate(affiliateBody: unknown, status = 200): typeof fetch {
+  return vi.fn<typeof fetch>(async (input) => {
+    const url = typeof input === "string" ? input : (input as Request).url;
+    if (url.endsWith("/token")) {
+      return new Response(
+        JSON.stringify({ access_token: "tok", token_type: "Bearer", expires_in: 3600 }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(JSON.stringify(affiliateBody), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+}
+
+describe("listAffiliateTransactions", () => {
+  it("returns parsed transactions on a successful response", async () => {
+    const fetchImpl = tokenAndAffiliate({
+      transactions: [
+        { id: "txn-1", status: "approved", commission: 4.5 },
+        { id: "txn-2", status: "pending", commission: 1.2 },
+      ],
+    });
+    const client = makeClient({ fetchImpl });
+    const result = await listAffiliateTransactions(client, {
+      startDate: "2026-06-01",
+      endDate: "2026-06-07",
+    });
+    expect(result.transactions).toHaveLength(2);
+    expect(result.transactions[0]?.id).toBe("txn-1");
+  });
+
+  it("defaults to an empty transactions array when the field is missing", async () => {
+    const fetchImpl = tokenAndAffiliate({});
+    const client = makeClient({ fetchImpl });
+    const result = await listAffiliateTransactions(client, {
+      startDate: "2026-06-01",
+      endDate: "2026-06-07",
+    });
+    expect(result.transactions).toEqual([]);
+  });
+
+  it("passes date range and sub-id as query params", async () => {
+    let capturedUrl = "";
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      capturedUrl = url;
+      if (url.endsWith("/token")) {
+        return new Response(
+          JSON.stringify({ access_token: "t", token_type: "Bearer", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ transactions: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const client = makeClient({ fetchImpl });
+    await listAffiliateTransactions(client, {
+      startDate: "2026-06-01",
+      endDate: "2026-06-07",
+      subId: "main:koffie:cohort-a",
+    });
+    expect(capturedUrl).toContain("/affiliate/reporting/v2/transactions");
+    expect(capturedUrl).toContain("start-date=2026-06-01");
+    expect(capturedUrl).toContain("end-date=2026-06-07");
+    expect(capturedUrl).toContain("sub-id=main");
+  });
+
+  it("throws BolError when transactions is not an array", async () => {
+    // The schema requires transactions to be an array; a string forces a Zod fail.
+    const fetchImpl = tokenAndAffiliate({ transactions: "nope" });
+    const client = makeClient({ fetchImpl, maxAttempts: 1 });
+    await expect(
+      listAffiliateTransactions(client, { startDate: "2026-06-01", endDate: "2026-06-07" }),
+    ).rejects.toBeInstanceOf(BolError);
   });
 });
