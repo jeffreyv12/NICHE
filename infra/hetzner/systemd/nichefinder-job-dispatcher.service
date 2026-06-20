@@ -1,0 +1,24 @@
+[Unit]
+Description=NicheFinder job-trigger dispatcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nichefinder
+Group=nichefinder
+WorkingDirectory=/opt/nichefinder
+EnvironmentFile=/etc/nichefinder/env
+ExecStart=/usr/bin/node /opt/nichefinder/apps/scrapers/dist/bin/job-dispatcher.js
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Restart on crash; give the DB a moment to come back if it was also restarting.
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
