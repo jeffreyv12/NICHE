@@ -15,7 +15,7 @@
 // gscPageMetrics.ts (rollupNicheMonthlyOrganicClicks), which attributes
 // page-grain GSC rows to niches via pages.full_path.
 
-import { canonicalConversionStatus, conversionCountsAsRevenue } from "./webhooks";
+import { canonicalConversionStatus, conversionCountsAsRevenue } from "./conversionStatus";
 
 /** One conversion reduced to what the revenue rollup needs. `nicheId` is the
  *  niche the conversion's page belongs to; the caller resolves it via

@@ -6,6 +6,7 @@ export * from "./killList";
 export * from "./rubric";
 export * from "./promotionGate";
 export * from "./types";
+export * from "./conversionStatus";
 export * from "./conversions";
 export * from "./botScore";
 export * from "./claimVerifier";
