@@ -11,7 +11,6 @@ import {
 
 const CTX: PrefetchContext = {
   candidate: {
-    id: "cand-001",
     topic: "Koffiezetapparaten",
     topic_slug: "koffiezetapparaten",
     related_keywords: ["espressomachine", "filterkoffie"],

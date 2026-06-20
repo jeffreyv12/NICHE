@@ -52,8 +52,8 @@ async function main(): Promise<void> {
 
   // --- Bol + Awin affiliate adapter ---
   let bolClient: BolClient | null = null;
-  const bolId = process.env.BOL_CLIENT_ID;
-  const bolSecret = process.env.BOL_CLIENT_SECRET;
+  const bolId = process.env.BOL_PARTNER_CLIENT_ID;
+  const bolSecret = process.env.BOL_PARTNER_CLIENT_SECRET;
   if (bolId && bolSecret) {
     bolClient = new BolClient({
       credentials: { clientId: bolId, clientSecret: bolSecret },
