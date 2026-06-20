@@ -672,6 +672,30 @@ export const costLedger = pgTable(
   }),
 );
 
+// JOB TRIGGERS (migration 0014) -------------------------------------------
+// Admin-initiated one-off job queue. The web server action INSERTs a queued
+// row; the Hetzner job-dispatcher service polls every 30 s, picks it up,
+// spawns the appropriate bin, and updates status to done/failed.
+
+export const jobTriggers = pgTable(
+  "job_triggers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jobId: text("job_id").notNull(),
+    status: text("status").notNull().default("queued"),
+    triggeredByEmail: text("triggered_by_email"),
+    queuedAt: timestamp("queued_at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    exitCode: integer("exit_code"),
+    error: text("error"),
+    output: text("output"),
+  },
+  (t) => ({
+    queuedIdx: index("job_triggers_queued_idx").on(t.queuedAt),
+  }),
+);
+
 // ALGORITHM EVENTS (migration 0011) ---------------------------------------
 // Global log of Google ranking-update windows (core/HCU/spam updates) for the
 // promotion gate's "no active update window" criterion (docs/PROMOTION_GATE.md

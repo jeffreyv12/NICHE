@@ -2,10 +2,12 @@
 //
 // Shows every background cron job: last-run status + cost for Claude agent jobs
 // (tracked in agent_runs), static schedule + CLI command for all 15 jobs.
-// Read-only; triggering happens via Hetzner CLI (see RUNBOOK.md §5).
+// "Run now" buttons insert a row into job_triggers; the Hetzner dispatcher
+// picks it up within 30 s (see RUNBOOK.md §6).
 
 import { requireAdmin } from "../../../../lib/auth";
 import { getServiceRoleSupabase } from "../../../../lib/supabase";
+import { triggerJobAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +133,9 @@ const JOBS: JobMeta[] = [
   },
 ];
 
+// Jobs that cannot be triggered via the queue (need args or separate UI).
+const NON_TRIGGERABLE = new Set(["migration", "migration-dry-run"]);
+
 // ---------------------------------------------------------------------------
 // Data fetching
 // ---------------------------------------------------------------------------
@@ -177,6 +182,41 @@ async function loadLastRuns(): Promise<Map<AgentName, LastRun>> {
     }
   }
   return map;
+}
+
+interface TriggerRow {
+  id: string;
+  jobId: string;
+  status: string;
+  triggeredByEmail: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  exitCode: number | null;
+  error: string | null;
+}
+
+async function loadRecentTriggers(): Promise<TriggerRow[]> {
+  const supabase = getServiceRoleSupabase();
+  const { data } = await supabase
+    .from("job_triggers")
+    .select(
+      "id, job_id, status, triggered_by_email, queued_at, started_at, finished_at, exit_code, error",
+    )
+    .order("queued_at", { ascending: false })
+    .limit(10);
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    jobId: r.job_id as string,
+    status: r.status as string,
+    triggeredByEmail: (r.triggered_by_email as string | null) ?? null,
+    queuedAt: r.queued_at as string,
+    startedAt: (r.started_at as string | null) ?? null,
+    finishedAt: (r.finished_at as string | null) ?? null,
+    exitCode: (r.exit_code as number | null) ?? null,
+    error: (r.error as string | null) ?? null,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +268,7 @@ function ago(iso: string): string {
 
 export default async function JobsPage() {
   await requireAdmin();
-  const lastRuns = await loadLastRuns();
+  const [lastRuns, recentTriggers] = await Promise.all([loadLastRuns(), loadRecentTriggers()]);
 
   // Track which agent names we've already shown a last-run row for.
   // test-page-draft + content-polish both map to agent="content"; the second
@@ -239,7 +279,8 @@ export default async function JobsPage() {
     <article style={{ maxWidth: 960 }}>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>Jobs</h1>
       <p style={{ color: "#737373", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
-        Overzicht van alle achtergrond-jobs. Starten via Hetzner SSH (zie RUNBOOK.md §5).
+        Overzicht van alle achtergrond-jobs. Klik "Nu starten" om een job in de wachtrij te
+        plaatsen; de Hetzner dispatcher verwerkt hem binnen 30 s (zie RUNBOOK.md §6).
       </p>
 
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
@@ -252,6 +293,7 @@ export default async function JobsPage() {
             <Th right>Duur</Th>
             <Th right>Kosten</Th>
             <Th>CLI-commando</Th>
+            <Th>{""}</Th>
           </tr>
         </thead>
         <tbody>
@@ -376,12 +418,39 @@ export default async function JobsPage() {
                     node dist/bin/{job.bin}
                   </code>
                 </td>
+
+                {/* Run now */}
+                <td style={{ padding: "0.625rem 0 0.625rem 0.75rem", whiteSpace: "nowrap" }}>
+                  {NON_TRIGGERABLE.has(job.id) ? (
+                    <span style={{ color: "#d4d4d4", fontSize: "0.75rem" }}>handmatig</span>
+                  ) : (
+                    <form action={triggerJobAction}>
+                      <input type="hidden" name="job_id" value={job.id} />
+                      <button
+                        type="submit"
+                        style={{
+                          fontSize: "0.75rem",
+                          padding: "0.2rem 0.6rem",
+                          border: "1px solid #2563eb",
+                          borderRadius: "0.25rem",
+                          background: "#eff6ff",
+                          color: "#1d4ed8",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Nu starten
+                      </button>
+                    </form>
+                  )}
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
 
+      <RecentTriggers rows={recentTriggers} />
       <HetznerBox />
     </article>
   );
@@ -401,6 +470,80 @@ function Th({ children, right }: { children: React.ReactNode; right?: boolean })
     >
       {children}
     </th>
+  );
+}
+
+function RecentTriggers({ rows }: { rows: TriggerRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section style={{ marginTop: "2rem" }}>
+      <h2 style={{ fontSize: "0.9375rem", fontWeight: 700, marginBottom: "0.75rem" }}>
+        Recente handmatige starts
+      </h2>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+        <thead>
+          <tr style={{ borderBottom: "2px solid #e5e5e5" }}>
+            <Th>Job</Th>
+            <Th>Gestart door</Th>
+            <Th>In wachtrij</Th>
+            <Th>Status</Th>
+            <Th right>Duur</Th>
+            <Th>Fout</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+              <td style={{ padding: "0.5rem 0.75rem 0.5rem 0", fontWeight: 600 }}>{r.jobId}</td>
+              <td style={{ padding: "0.5rem 0.75rem", color: "#525252" }}>
+                {r.triggeredByEmail ?? "—"}
+              </td>
+              <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>
+                <span title={fmtDate(r.queuedAt)}>{ago(r.queuedAt)}</span>
+              </td>
+              <td style={{ padding: "0.5rem 0.75rem" }}>
+                <span
+                  style={{
+                    background: statusBg(r.status),
+                    color: statusColor(r.status),
+                    border: `1px solid ${statusColor(r.status)}40`,
+                    borderRadius: "0.25rem",
+                    padding: "0.1rem 0.45rem",
+                    fontWeight: 600,
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  {r.status}
+                </span>
+              </td>
+              <td
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "right",
+                  color: "#525252",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {r.startedAt ? durationMin(r.startedAt, r.finishedAt) : "—"}
+              </td>
+              <td
+                style={{
+                  padding: "0.5rem 0 0.5rem 0.75rem",
+                  color: "#dc2626",
+                  maxWidth: 320,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={r.error ?? undefined}
+              >
+                {r.error ?? <span style={{ color: "#d4d4d4" }}>—</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 
