@@ -12,9 +12,12 @@ and what to do. It is the Phase 6.5 deliverable (CLAUDE.md §6.5.1).
 | Dashboard | `/admin` |
 | Niches | `/admin/niches` |
 | Kill flags | `/admin/niches` → flag badge per niche |
+| Approval queue | `/admin/approval` |
 | Cost telemetry | `/admin/costs` |
 | Orchestrator | `/admin/orchestrator` |
+| Jobs (manual run) | `/admin/jobs` |
 | First-party tests | `/admin/tests` |
+| Promotions | `/admin/promotions` |
 
 ---
 
@@ -32,8 +35,8 @@ and what to do. It is the Phase 6.5 deliverable (CLAUDE.md §6.5.1).
 **Actions:**
 - Review the `Per agent` table. High-cost agents: `content`, `orchestrator` (Opus).
 - If the niche count is high, reduce `SCORING_BATCH_SIZE` in `.env.local` temporarily.
-- If still in the first half of the month: defer the nightly scoring batch
-  (`SCORING_CRON_DISABLED=true` in Hetzner systemd override).
+- If still in the first half of the month: reduce `SCORING_BATCH_LIMIT` in
+  `/etc/nichefinder/env` on Hetzner, then `systemctl restart nichefinder-scoring.timer`.
 - No immediate code change needed; the warning is informational.
 
 ### 1b. "Claude spend ≥100% of budget" (critical)
@@ -135,12 +138,17 @@ Hetzner: node dist/bin/reconciliation-once.js --window 7
 
 ## 5. Restart procedures
 
-### 5a. Restart all Hetzner cron jobs
+### 5a. Restart all Hetzner timers + dispatcher
 
 ```bash
 ssh hetzner
-systemctl restart nichefinder-scrapers
-systemctl status  nichefinder-scrapers
+# Restart all nichefinder timers
+systemctl list-unit-files 'nichefinder-*.timer' --no-legend | awk '{print $1}' | \
+  xargs sudo systemctl restart
+# Restart the persistent dispatcher
+sudo systemctl restart nichefinder-job-dispatcher.service
+# Verify
+systemctl list-timers 'nichefinder-*' --all
 ```
 
 ### 5b. Re-run a specific one-shot job
@@ -148,13 +156,20 @@ systemctl status  nichefinder-scrapers
 ```bash
 ssh hetzner
 cd /opt/nichefinder/apps/scrapers
+node dist/bin/discovery-once.js
 node dist/bin/scoring-once.js
 node dist/bin/validation-once.js
-node dist/bin/kill-scan-once.js
+node dist/bin/test-page-draft-once.js
+node dist/bin/content-polish-once.js
+node dist/bin/kill-scan-once.js          # runs nichefinder-kill-sweep.timer job
 node dist/bin/orchestrator-once.js
 node dist/bin/reconciliation-once.js
-node dist/bin/content-polish-once.js
+node dist/bin/bol-feed-sync-once.js
+node dist/bin/gsc-pull-once.js
+node dist/bin/niche-monthly-metrics-once.js
 node dist/bin/algorithm-events-ingest-once.js
+node dist/bin/promotion-once.js          # Sunday gate evaluation
+node dist/bin/migration-dry-run-once.js  # dry-run only — real migration needs approval
 ```
 
 **Scheduling order (NL time).** Two jobs feed the promotion gate and MUST run
@@ -173,8 +188,22 @@ restarts already-enabled units, but a brand-new timer must be enabled once:
 
 ```bash
 ssh hetzner
+# Enable all timers (first deploy on a new box):
+sudo systemctl enable --now nichefinder-discovery.timer
+sudo systemctl enable --now nichefinder-scoring.timer
+sudo systemctl enable --now nichefinder-validation-review.timer
+sudo systemctl enable --now nichefinder-test-page-draft.timer
+sudo systemctl enable --now nichefinder-content-polish.timer
+sudo systemctl enable --now nichefinder-kill-sweep.timer
+sudo systemctl enable --now nichefinder-orchestrator.timer
+sudo systemctl enable --now nichefinder-promotion-eval.timer
+sudo systemctl enable --now nichefinder-bol-feed-sync.timer
+sudo systemctl enable --now nichefinder-gsc-pull.timer
 sudo systemctl enable --now nichefinder-niche-monthly-metrics.timer
 sudo systemctl enable --now nichefinder-algorithm-events-ingest.timer
+sudo systemctl enable --now nichefinder-conversions-reconcile.timer
+# Enable dispatcher service
+sudo systemctl enable --now nichefinder-job-dispatcher.service
 systemctl list-timers 'nichefinder-*' --all   # verify next-run times
 ```
 
@@ -223,8 +252,11 @@ openssl rand -hex 32
 
 **Actions:**
 1. Suspend the nightly batch:
-   ```
-   Hetzner: systemctl stop nichefinder-scrapers
+   ```bash
+   ssh hetzner
+   systemctl list-unit-files 'nichefinder-*.timer' --no-legend | \
+     awk '{print $1}' | xargs sudo systemctl stop
+   sudo systemctl stop nichefinder-job-dispatcher.service
    ```
 2. No content will be drafted or scored until Anthropic recovers. That is OK.
    The existing published pages remain live (ISR-cached on Vercel CDN).
@@ -351,5 +383,4 @@ Then re-queue from the admin UI if needed.
 
 ---
 
-*Last updated: 2026-06-20. Update this file whenever a new alert type or
-operational procedure is added.*
+*Last updated: 2026-06-20 (added test-page-draft timer, Jobs admin URL, full timer enable list, fixed service name references). Update this file whenever a new alert type or operational procedure is added.*

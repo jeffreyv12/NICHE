@@ -1,0 +1,14 @@
+[Unit]
+Description=NicheFinder Test-Page Draft — Tue/Thu 02:00 NL
+Documentation=docs/PHASE_PLAN.md Phase 4.2
+
+[Timer]
+# Tue and Thu at 02:00 Europe/Amsterdam. New draft pages are created here so
+# the next content-polish run (Wed/Fri 01:00) can immediately polish them.
+# Runs after scoring (Sun 03:30) and discovery (Sun 02:00) have completed.
+OnCalendar=Tue,Thu *-*-* 02:00:00
+Persistent=true
+Unit=nichefinder-runner@test-page-draft.service
+
+[Install]
+WantedBy=timers.target
