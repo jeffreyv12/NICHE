@@ -62,3 +62,83 @@ describe("evaluateKillCriteria", () => {
     expect(flags.map((f) => f.reason)).toContain("low_revenue_month_6");
   });
 });
+
+describe("evaluateKillCriteria — maturity boundary (180 days)", () => {
+  it("treats a niche at exactly 180 days as mature (>= check)", () => {
+    const flags = evaluateKillCriteria(
+      input({ nicheAgeDays: 180, trailing30dRevenueEur: 0, trailing30dOrganicClicks: 0 }),
+    );
+    expect(flags.map((f) => f.reason)).toContain("low_revenue_month_6");
+    expect(flags.map((f) => f.reason)).toContain("low_traffic_month_6");
+  });
+
+  it("does not flag revenue/traffic at 179 days (not yet mature)", () => {
+    const flags = evaluateKillCriteria(
+      input({ nicheAgeDays: 179, trailing30dRevenueEur: 0, trailing30dOrganicClicks: 0 }),
+    );
+    expect(flags).toHaveLength(0);
+  });
+
+  it("does not flag revenue when exactly at the default threshold (10 EUR)", () => {
+    const flags = evaluateKillCriteria(input({ nicheAgeDays: 200, trailing30dRevenueEur: 10 }));
+    expect(flags.map((f) => f.reason)).not.toContain("low_revenue_month_6");
+  });
+
+  it("flags revenue when 1 cent below the default threshold (9.99 EUR)", () => {
+    const flags = evaluateKillCriteria(input({ nicheAgeDays: 200, trailing30dRevenueEur: 9.99 }));
+    expect(flags.map((f) => f.reason)).toContain("low_revenue_month_6");
+  });
+
+  it("does not flag traffic when exactly at the default threshold (100 clicks)", () => {
+    const flags = evaluateKillCriteria(input({ nicheAgeDays: 200, trailing30dOrganicClicks: 100 }));
+    expect(flags.map((f) => f.reason)).not.toContain("low_traffic_month_6");
+  });
+
+  it("flags traffic when one click below the default threshold (99 clicks)", () => {
+    const flags = evaluateKillCriteria(input({ nicheAgeDays: 200, trailing30dOrganicClicks: 99 }));
+    expect(flags.map((f) => f.reason)).toContain("low_traffic_month_6");
+  });
+});
+
+describe("evaluateKillCriteria — flag detail content", () => {
+  it("kill_list_match flag carries Dutch detail text", () => {
+    const flags = evaluateKillCriteria(input({ killListHardBlock: true }));
+    expect(flags[0]?.detail).toMatch(/kill-list/i);
+  });
+
+  it("google_penalty flag references manual action (handmatige actie)", () => {
+    const flags = evaluateKillCriteria(input({ hasGoogleManualAction: true }));
+    const flag = flags.find((f) => f.reason === "google_penalty");
+    expect(flag?.detail).toContain("handmatige actie");
+  });
+
+  it("low_revenue_month_6 detail includes the actual revenue amount", () => {
+    const flags = evaluateKillCriteria(input({ nicheAgeDays: 200, trailing30dRevenueEur: 3.5 }));
+    const flag = flags.find((f) => f.reason === "low_revenue_month_6");
+    expect(flag?.detail).toContain("3.50");
+  });
+
+  it("low_traffic_month_6 detail includes the actual click count", () => {
+    const flags = evaluateKillCriteria(input({ nicheAgeDays: 200, trailing30dOrganicClicks: 42 }));
+    const flag = flags.find((f) => f.reason === "low_traffic_month_6");
+    expect(flag?.detail).toContain("42");
+  });
+
+  it("all four flags can be raised simultaneously", () => {
+    const flags = evaluateKillCriteria(
+      input({
+        nicheAgeDays: 200,
+        killListHardBlock: true,
+        hasGoogleManualAction: true,
+        trailing30dRevenueEur: 0,
+        trailing30dOrganicClicks: 0,
+      }),
+    );
+    expect(flags.map((f) => f.reason).sort()).toEqual([
+      "google_penalty",
+      "kill_list_match",
+      "low_revenue_month_6",
+      "low_traffic_month_6",
+    ]);
+  });
+});

@@ -67,3 +67,38 @@ describe("scoreClickBot — verified bots", () => {
     expect(r.isBot).toBe(true);
   });
 });
+
+describe("scoreClickBot — intermediate UA scores (below bot threshold)", () => {
+  it("preview/prefetch/fetch UAs score 60 — below threshold, treated as human", () => {
+    for (const ua of ["fetch/1.0", "Next.js prefetch", "link-preview-agent"]) {
+      const r = scoreClickBot({ userAgent: ua });
+      expect(r.score).toBe(60);
+      expect(r.isBot).toBe(false);
+    }
+  });
+});
+
+describe("scoreClickBot — java UA pattern", () => {
+  it("flags 'java/' as a bot (crawler pattern)", () => {
+    const r = scoreClickBot({ userAgent: "Java/11.0.2" });
+    expect(r.isBot).toBe(true);
+    expect(r.score).toBeGreaterThanOrEqual(BOT_SCORE_THRESHOLD);
+  });
+});
+
+describe("scoreClickBot — CF bot score exact threshold", () => {
+  const humanUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124 Safari/537.36";
+
+  it("cfBotScore=30 inverts to 70 — exactly at threshold, treated as bot", () => {
+    // CF 30 (bot-like) → inverted = 100 - 30 = 70 ≥ BOT_SCORE_THRESHOLD
+    const r = scoreClickBot({ userAgent: humanUa, cfBotScore: 30 });
+    expect(r.score).toBe(70);
+    expect(r.isBot).toBe(true);
+  });
+
+  it("cfBotScore=31 inverts to 69 — one below threshold, treated as human", () => {
+    const r = scoreClickBot({ userAgent: humanUa, cfBotScore: 31 });
+    expect(r.score).toBe(69);
+    expect(r.isBot).toBe(false);
+  });
+});

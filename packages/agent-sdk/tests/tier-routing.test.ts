@@ -57,6 +57,35 @@ describe("tier routing", () => {
     }
   });
 
+  it("validation is Sonnet-only", () => {
+    expect(allowedModelsForAgent("validation")).toEqual(["claude-sonnet-4-6"]);
+  });
+
+  it("assertAgentModel passes for validation + sonnet", () => {
+    expect(() => assertAgentModel("validation", "claude-sonnet-4-6")).not.toThrow();
+  });
+
+  it("assertAgentModel throws TierRoutingError when validation tries Haiku", () => {
+    expect(() => assertAgentModel("validation", "claude-haiku-4-5-20251001")).toThrow(
+      TierRoutingError,
+    );
+  });
+
+  it("assertAgentModel throws TierRoutingError when validation tries Opus", () => {
+    expect(() => assertAgentModel("validation", "claude-opus-4-7")).toThrow(TierRoutingError);
+  });
+
+  it("error message names allowed models in the allowed list", () => {
+    try {
+      assertAgentModel("scoring", "claude-opus-4-7");
+      expect.fail("should have thrown");
+    } catch (e) {
+      expect((e as Error).message).toContain("Allowed:");
+      expect((e as Error).message).toContain("claude-haiku-4-5-20251001");
+      expect((e as Error).message).toContain("claude-sonnet-4-6");
+    }
+  });
+
   it("ALLOWED_MODELS_PER_AGENT covers all six agents", () => {
     expect(Object.keys(ALLOWED_MODELS_PER_AGENT).sort()).toEqual([
       "content",

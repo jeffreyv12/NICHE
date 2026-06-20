@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { defaultRetryPolicy } from "../client.js";
 import type { RetryPolicy } from "../client.js";
 import {
   DataForSeoAuthError,
@@ -152,6 +153,77 @@ describe("keywordOverview", () => {
     expect(a[0]?.search_volume).toBe(4400);
     expect(b).toEqual(a);
     expect(calls).toBe(1); // second call served from cache
+  });
+});
+
+describe("DataForSeoClient.post — retry exhaustion", () => {
+  it("throws after maxAttempts with a persistent 503", async () => {
+    let calls = 0;
+    const fetchImpl = mockFetch(() => {
+      calls++;
+      return new Response("overloaded", { status: 503 });
+    });
+    const retry: RetryPolicy = {
+      maxAttempts: 3,
+      decide: (_args: { attempt: number; error: unknown; httpStatus?: number }) => ({
+        retry: true,
+        delayMs: 0,
+      }),
+    };
+    const client = new DataForSeoClient({ credentials: CREDS, fetchImpl, retry });
+    await expect(client.post("/v3/test", {})).rejects.toBeInstanceOf(DataForSeoError);
+    expect(calls).toBe(3); // tried maxAttempts times
+  });
+
+  it("throws DataForSeoError with the HTTP status when exhausted", async () => {
+    const fetchImpl = mockFetch(() => new Response("rate limited", { status: 429 }));
+    const retry: RetryPolicy = {
+      maxAttempts: 2,
+      decide: () => ({ retry: true, delayMs: 0 }),
+    };
+    const client = new DataForSeoClient({ credentials: CREDS, fetchImpl, retry });
+    let err: unknown;
+    try {
+      await client.post("/v3/test", {});
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(DataForSeoError);
+    expect((err as DataForSeoError).statusCode).toBe(429);
+  });
+});
+
+describe("defaultRetryPolicy", () => {
+  it("retries on 429 (rate limit)", () => {
+    const policy = defaultRetryPolicy();
+    const d = policy.decide({ attempt: 1, error: null, httpStatus: 429 });
+    expect(d.retry).toBe(true);
+    expect(d.delayMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("retries on 503 (5xx server error)", () => {
+    const policy = defaultRetryPolicy();
+    expect(policy.decide({ attempt: 1, error: null, httpStatus: 503 }).retry).toBe(true);
+  });
+
+  it("retries when httpStatus is undefined (network error)", () => {
+    const policy = defaultRetryPolicy();
+    expect(policy.decide({ attempt: 1, error: new TypeError("fetch failed") }).retry).toBe(true);
+  });
+
+  it("does NOT retry on 400 (bad request — not retryable)", () => {
+    const policy = defaultRetryPolicy();
+    expect(policy.decide({ attempt: 1, error: null, httpStatus: 400 }).retry).toBe(false);
+  });
+
+  it("does NOT retry on 422 (unprocessable entity)", () => {
+    const policy = defaultRetryPolicy();
+    expect(policy.decide({ attempt: 1, error: null, httpStatus: 422 }).retry).toBe(false);
+  });
+
+  it("has maxAttempts > 1 (retries are enabled by default)", () => {
+    const policy = defaultRetryPolicy();
+    expect(policy.maxAttempts).toBeGreaterThan(1);
   });
 });
 
