@@ -13,12 +13,12 @@
 import type { ServiceDb } from "@nichefinder/db";
 import {
   type AffiliateNetwork,
-  type Env,
   type NormalizedConversion,
   ingestConversion,
   moneyToCents,
   toIso,
 } from "@nichefinder/shared";
+import type { Env } from "@nichefinder/shared/env";
 import * as awin from "../sources/awin/index.js";
 import type { AwinTransaction } from "../sources/awin/types.js";
 import * as bol from "../sources/bol/index.js";

@@ -1,6 +1,7 @@
 // @nichefinder/shared — public surface.
+// ⚠ env.ts is excluded: it uses process.exit which is not Edge-compatible.
+//   Import env types via @nichefinder/shared/env (server/Node.js contexts only).
 
-export * from "./env";
 export * from "./constants";
 export * from "./killList";
 export * from "./rubric";

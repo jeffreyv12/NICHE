@@ -1,11 +1,10 @@
 import type { NextConfig } from "next";
 
-// Single source of truth for env is the monorepo-root .env.local (CLAUDE.md #11).
-// Next only auto-loads .env from the app dir (apps/web), so bridge the root file
-// into process.env here, before Next reads env for NEXT_PUBLIC_* inlining and
-// runtime. Built-in since Node 22; no dependency. On Vercel/CI there is no root
-// .env.local (env comes from the platform) — the throw is caught and ignored.
+// Bridge the monorepo-root .env.local into process.env for local dev.
+// On Vercel/CI there is no .env.local — the throw is caught and ignored.
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path = require("node:path") as typeof import("node:path");
   process.loadEnvFile(path.resolve(process.cwd(), "../../.env.local"));
 } catch {
   // No root .env.local present — rely on platform-provided environment.

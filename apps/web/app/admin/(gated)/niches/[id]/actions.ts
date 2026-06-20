@@ -56,8 +56,8 @@ async function revalidatePublicPage(tenantId: string, fullPath: string): Promise
     .eq("id", tenantId)
     .maybeSingle();
   if (!tenant?.slug) return null;
-  revalidateTag(pageTag(tenant.slug, fullPath));
-  revalidateTag(tenantTag(tenant.slug));
+  revalidateTag(pageTag(tenant.slug, fullPath), {});
+  revalidateTag(tenantTag(tenant.slug), {});
   return tenant.slug;
 }
 

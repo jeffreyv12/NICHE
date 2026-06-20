@@ -10,7 +10,7 @@
 // Networks with missing credentials are skipped, not failed.
 
 import { getServiceDb } from "@nichefinder/db";
-import { parseEnv } from "@nichefinder/shared";
+import { parseEnv } from "@nichefinder/shared/env";
 import { createDefaultReportingAdapter, runReconciliationJob } from "../jobs/reconciliation.js";
 
 function parseDaysArg(argv: string[]): number | undefined {
