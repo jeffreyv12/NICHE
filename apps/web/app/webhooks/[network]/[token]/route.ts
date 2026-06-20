@@ -11,13 +11,8 @@
 // All ingestion logic is in @nichefinder/shared and unit-tested there; this
 // route is the HTTP + auth + body-parsing adapter.
 
-import {
-  ingestConversion,
-  isAffiliateNetwork,
-  parsePostback,
-  verifyHmacSignature,
-  verifyWebhookToken,
-} from "@nichefinder/shared";
+import { ingestConversion, isAffiliateNetwork, parsePostback } from "@nichefinder/shared";
+import { verifyHmacSignature, verifyWebhookToken } from "@nichefinder/shared/webhooks";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServiceRoleSupabase } from "../../../../lib/supabase";
 import { getNetworkWebhookConfig } from "../../../../lib/webhooks/config";
