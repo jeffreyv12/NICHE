@@ -216,6 +216,39 @@ describe("runContentPolishJob", () => {
     expect(input.existing_claims[0]?.sources).toEqual([]);
   });
 
+  it("forwards peer pages to the agent for internal-link suggestions (4.1.3)", async () => {
+    mockPolish();
+    const { db } = makeFakeDb(
+      selectQueue({
+        peerPages: [
+          {
+            fullPath: "/koffiemolens/beste-burr-molens",
+            title: "Beste burr molens 2026",
+            kind: "comparison",
+          },
+          {
+            fullPath: "/koffiemolens/handmatige-molens",
+            title: "Handmatige molens vergelijken",
+            kind: "buying_guide",
+          },
+        ],
+      }),
+    );
+    await runContentPolishJob({
+      db,
+      runtime: {} as Parameters<typeof runContentPolishJob>[0]["runtime"],
+      pageId: "page-1",
+    });
+
+    const input = mockedPolish.mock.calls[0]?.[1] as contentAgent.ContentPolishInput;
+    expect(input.peer_pages).toHaveLength(2);
+    expect(input.peer_pages[0]).toMatchObject({
+      url: "/koffiemolens/beste-burr-molens",
+      title: "Beste burr molens 2026",
+      kind: "comparison",
+    });
+  });
+
   it("isolates a per-page failure (missing niche) without throwing", async () => {
     mockPolish();
     const { db } = makeFakeDb(selectQueue({ niche: [] }));
