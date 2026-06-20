@@ -166,6 +166,49 @@ describe("runOrchestratorJob", () => {
     expect(result.webhookPosted).toBe(false);
   });
 
+  it("sets webhookPosted=true and POSTs correct body on success", async () => {
+    const output = makeOutput({
+      headline: "Portfolio stabiel — geen actie vereist.",
+      operator_action_items: ["Controleer niche X", "Review content Y"],
+    });
+    mockAgentResponse(output);
+
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await runOrchestratorJob(
+      makeOpts({ slackWebhookUrl: "https://hooks.slack.com/T123/B456/abc" }),
+    );
+
+    expect(result.webhookPosted).toBe(true);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://hooks.slack.com/T123/B456/abc");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+    const body = JSON.parse(init.body as string) as { text: string };
+    expect(body.text).toContain("NicheFinder weekly review");
+    expect(body.text).toContain("Portfolio stabiel");
+    expect(body.text).toContain("Controleer niche X");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("posts to Discord URL when discord URL is supplied (not slack)", async () => {
+    mockAgentResponse(makeOutput());
+
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await runOrchestratorJob(
+      makeOpts({ discordWebhookUrl: "https://discord.com/api/webhooks/123/abc" }),
+    );
+
+    expect(result.webhookPosted).toBe(true);
+    const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://discord.com/api/webhooks/123/abc");
+
+    vi.unstubAllGlobals();
+  });
+
   it("forwards the snapshot input to the agent including week_of", async () => {
     const output = makeOutput();
     mockAgentResponse(output);
