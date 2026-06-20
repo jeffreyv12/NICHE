@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import type { ServiceDb } from "@nichefinder/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pollOnce } from "../dispatcher.js";
@@ -55,14 +55,16 @@ function mockChild(opts: MockChildOpts = {}) {
     listeners.exit?.[0]?.(opts.exitCode ?? 0);
   });
 
-  return child;
+  return child as unknown as ChildProcess;
 }
 
 // ---------------------------------------------------------------------------
 // DB mock factory
 // ---------------------------------------------------------------------------
 
-function makeDb(triggerRows: object[] = []) {
+type MockDb = ServiceDb & { _updatedSets: Record<string, unknown>[] };
+
+function makeDb(triggerRows: object[] = []): MockDb {
   const updatedSets: Record<string, unknown>[] = [];
   return {
     _updatedSets: updatedSets,
@@ -83,7 +85,7 @@ function makeDb(triggerRows: object[] = []) {
         },
       }),
     }),
-  } as unknown as ServiceDb;
+  } as unknown as MockDb;
 }
 
 function makeTrigger(overrides: Record<string, unknown> = {}) {

@@ -50,7 +50,9 @@ function makeDrRow(overrides = {}) {
   };
 }
 
-function makeDb(migRow = makeMigrationRow(), drRow = makeDrRow()) {
+type MigMockDb = RunMigrationOptions["db"] & { _updatedSets: Record<string, unknown>[] };
+
+function makeDb(migRow = makeMigrationRow(), drRow = makeDrRow()): MigMockDb {
   const updatedSets: Record<string, unknown>[] = [];
   let selectCall = 0;
 
@@ -75,7 +77,7 @@ function makeDb(migRow = makeMigrationRow(), drRow = makeDrRow()) {
       }),
     }),
     execute: () => Promise.resolve(undefined),
-  } as unknown as RunMigrationOptions["db"];
+  } as unknown as MigMockDb;
 }
 
 function makeAdapters() {
@@ -469,7 +471,9 @@ describe("runMigration", () => {
       const adapters = makeAdapters();
       adapters.transip.registerDomain = vi.fn().mockRejectedValue(new Error("domain taken"));
       await runMigration({ db, migrationId: MIGRATION_ID, adapters });
-      const failUpdate = db._updatedSets.find((u) => u.status === "failed");
+      const failUpdate = db._updatedSets.find(
+        (u: Record<string, unknown>) => u.status === "failed",
+      );
       expect(failUpdate).toMatchObject({ status: "failed", failedStep: 2 });
       expect(failUpdate).toHaveProperty("failedAt");
     });

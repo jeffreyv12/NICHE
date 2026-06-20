@@ -54,8 +54,8 @@ export async function pollOnce(db: ServiceDb): Promise<void> {
     .orderBy(jobTriggers.queuedAt)
     .limit(1);
 
-  if (rows.length === 0) return;
   const trigger = rows[0];
+  if (!trigger) return;
 
   // Validate against allowlist before touching anything.
   if (!ALLOWED_JOBS.has(trigger.jobId)) {
