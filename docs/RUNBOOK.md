@@ -155,21 +155,21 @@ systemctl list-timers 'nichefinder-*' --all
 
 ```bash
 ssh hetzner
-cd /opt/nichefinder/apps/scrapers
-node dist/bin/discovery-once.js
-node dist/bin/scoring-once.js
-node dist/bin/validation-once.js
-node dist/bin/test-page-draft-once.js
-node dist/bin/content-polish-once.js
-node dist/bin/kill-scan-once.js          # runs nichefinder-kill-sweep.timer job
-node dist/bin/orchestrator-once.js
-node dist/bin/reconciliation-once.js
-node dist/bin/bol-feed-sync-once.js
-node dist/bin/gsc-pull-once.js
-node dist/bin/niche-monthly-metrics-once.js
-node dist/bin/algorithm-events-ingest-once.js
-node dist/bin/promotion-once.js          # Sunday gate evaluation
-node dist/bin/migration-dry-run-once.js  # dry-run only — real migration needs approval
+cd /opt/nichefinder
+npx tsx apps/scrapers/src/bin/discovery-once.ts
+npx tsx apps/scrapers/src/bin/scoring-once.ts
+npx tsx apps/scrapers/src/bin/validation-once.ts
+npx tsx apps/scrapers/src/bin/test-page-draft-once.ts
+npx tsx apps/scrapers/src/bin/content-polish-once.ts
+npx tsx apps/scrapers/src/bin/kill-scan-once.ts          # runs nichefinder-kill-sweep.timer job
+npx tsx apps/scrapers/src/bin/orchestrator-once.ts
+npx tsx apps/scrapers/src/bin/reconciliation-once.ts
+npx tsx apps/scrapers/src/bin/bol-feed-sync-once.ts
+npx tsx apps/scrapers/src/bin/gsc-pull-once.ts
+npx tsx apps/scrapers/src/bin/niche-monthly-metrics-once.ts
+npx tsx apps/scrapers/src/bin/algorithm-events-ingest-once.ts
+npx tsx apps/scrapers/src/bin/promotion-once.ts          # Sunday gate evaluation
+npx tsx apps/scrapers/src/bin/migration-dry-run-once.ts  # dry-run only — real migration needs approval
 ```
 
 **Scheduling order (NL time).** Two jobs feed the promotion gate and MUST run
