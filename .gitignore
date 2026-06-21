@@ -56,3 +56,5 @@ supabase/.temp/
 *.key
 *.p12
 .secrets/
+
+.vercel
