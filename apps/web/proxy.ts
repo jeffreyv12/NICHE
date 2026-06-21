@@ -1,4 +1,6 @@
-// Edge middleware — runs on every request before any route handler.
+// Proxy — runs on every request before any route handler.
+// (Renamed from middleware.ts per Next.js 16 convention; function renamed to `proxy`.)
+//
 // Three concerns, in order:
 //  1. Skip Next.js internals, static assets, and webhook/redirect/api routes
 //  2. Resolve tenant by hostname (+ for main authority, by first path segment)
@@ -15,7 +17,7 @@ import {
   getTenantByHostname,
 } from "./lib/tenants";
 
-// Paths the middleware never touches: Next internals, static, admin (handled
+// Paths the proxy never touches: Next internals, static, admin (handled
 // by its own auth gate), webhooks (must be reachable without tenant context),
 // and the affiliate redirect + api routes.
 const PASSTHROUGH_PREFIXES = [
@@ -30,7 +32,7 @@ const PASSTHROUGH_PREFIXES = [
   "/sitemap.xml",
 ];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   for (const p of PASSTHROUGH_PREFIXES) {
