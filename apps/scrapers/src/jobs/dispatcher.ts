@@ -36,10 +36,20 @@ const ALLOWED_JOBS = new Set([
   // they require a migrationId argument and run via the admin Migrations UI.
 ]);
 
-// Root of the compiled scrapers dist. Override with SCRAPERS_BIN_DIR env var.
+// Root of the scrapers bin dir. Override with SCRAPERS_BIN_DIR env var.
+// Defaults to compiled dist; set to src/bin and SCRAPERS_BIN_EXT=ts to run via tsx.
 const BIN_DIR =
   process.env.SCRAPERS_BIN_DIR ??
   path.join(process.env.NICHEFINDER_ROOT ?? "/opt/nichefinder", "apps/scrapers/dist/bin");
+
+const BIN_EXT = process.env.SCRAPERS_BIN_EXT ?? "js";
+
+// When running .ts source files, use tsx instead of plain node.
+const TSX_BIN = path.join(
+  process.env.NICHEFINDER_ROOT ?? "/opt/nichefinder",
+  "apps/scrapers/node_modules/.bin/tsx",
+);
+const EXECUTOR = BIN_EXT === "ts" ? TSX_BIN : process.execPath;
 
 // ---------------------------------------------------------------------------
 // Single poll cycle
@@ -76,13 +86,13 @@ export async function pollOnce(db: ServiceDb): Promise<void> {
     .set({ status: "running", startedAt: new Date() })
     .where(eq(jobTriggers.id, trigger.id));
 
-  const binPath = path.join(BIN_DIR, `${trigger.jobId}-once.js`);
+  const binPath = path.join(BIN_DIR, `${trigger.jobId}-once.${BIN_EXT}`);
   let outputBuf = "";
   let exitCode = 0;
 
   try {
     exitCode = await new Promise<number>((resolve, reject) => {
-      const child = spawn(process.execPath, [binPath], {
+      const child = spawn(EXECUTOR, [binPath], {
         env: process.env,
         stdio: ["ignore", "pipe", "pipe"],
       });
