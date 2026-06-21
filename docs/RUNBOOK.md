@@ -383,4 +383,23 @@ Then re-queue from the admin UI if needed.
 
 ---
 
-*Last updated: 2026-06-20 (added test-page-draft timer, Jobs admin URL, full timer enable list, fixed service name references). Update this file whenever a new alert type or operational procedure is added.*
+---
+
+## 12. GitHub Actions CI secrets
+
+The CI workflows require the following repository secrets (Settings → Secrets and variables → Actions → New repository secret):
+
+| Secret | Where to get it | Used by |
+|---|---|---|
+| `DATABASE_URL` | `.env.local` → `DATABASE_URL` value | `deploy-db.yml` — runs Drizzle migrations on merge to main |
+| `HETZNER_HOST` | Hetzner Cloud dashboard → Server IP | `deploy-hetzner.yml` |
+| `HETZNER_USER` | Usually `root` or `deploy` (the SSH user you set up) | `deploy-hetzner.yml` |
+| `HETZNER_SSH_KEY` | Private key matching the public key on the Hetzner server | `deploy-hetzner.yml` |
+
+Until these are set, the deploy workflows will fail when triggered; the lint + typecheck + test step runs without any secrets and will pass.
+
+**Vercel project ID note:** The live project is `prj_7PqJTx7KHaPGvMh1gTUBelvjDY3A` (hostname `nichefinder-web.vercel.app`). This is stored in `.env.local` as `VERCEL_PROJECT_ID`.
+
+---
+
+*Last updated: 2026-06-21 (middleware→proxy rename, GitHub secrets table, corrected VERCEL_PROJECT_ID). Update this file whenever a new alert type or operational procedure is added.*
