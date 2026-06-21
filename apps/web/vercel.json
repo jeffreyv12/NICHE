@@ -3,5 +3,5 @@
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm turbo run build --filter=@nichefinder/web",
   "outputDirectory": ".next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/web packages"
+  "ignoreCommand": "npx turbo-ignore @nichefinder/web"
 }
