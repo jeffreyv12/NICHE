@@ -24,7 +24,6 @@ interface TenantConfig {
 interface TenantRow {
   id: string;
   slug: string;
-  name: string;
   config: TenantConfig;
 }
 
@@ -32,7 +31,7 @@ async function loadTenant(slug: string): Promise<TenantRow | null> {
   const supabase = getServiceRoleSupabase();
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, slug, name, config")
+    .select("id, slug, config")
     .eq("slug", slug)
     .eq("is_active", true)
     .maybeSingle();
@@ -53,7 +52,7 @@ export default async function TenantLayout({
 
   const brand = tenant.config?.brand ?? {};
   const lang = tenant.config?.locale?.primary ?? "nl-NL";
-  const siteName = brand.name ?? tenant.name ?? "NicheFinder";
+  const siteName = brand.name ?? "NicheFinder";
 
   const cssVars: Record<string, string> = {};
   if (brand.primaryColor) cssVars["--brand-primary"] = brand.primaryColor;
