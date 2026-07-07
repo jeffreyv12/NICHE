@@ -17,17 +17,26 @@ export function AiAssistedBadge({ authorName, badgeText }: Props) {
   return (
     <>
       <span
-        className="disclosure disclosure--ai"
-        style={{
-          display: "inline-block",
-          fontSize: "0.75rem",
-          padding: "0.25rem 0.5rem",
-          marginTop: "0.5rem",
-        }}
         role="note"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.3rem",
+          fontSize: "0.75rem",
+          fontWeight: 500,
+          padding: "0.2rem 0.6rem",
+          borderRadius: "9999px",
+          background: "#eff6ff",
+          border: "1px solid #93c5fd",
+          color: "#1e40af",
+          letterSpacing: "0.01em",
+        }}
       >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
         {text}
-        {authorName ? <> · door {authorName}</> : null}
+        {authorName ? <> · {authorName}</> : null}
       </span>
       <script
         type="application/ld+json"
