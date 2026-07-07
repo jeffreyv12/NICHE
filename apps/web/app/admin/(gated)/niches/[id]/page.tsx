@@ -328,7 +328,8 @@ export default async function AdminNicheDetailPage({ params }: { params: Promise
             {pages.map((p) => {
               const check = claimChecks.get(p.id);
               const blocked = check ? !check.ok : false;
-              const canApprove = p.state === "draft" || p.state === "rejected";
+              const canApprove =
+                p.state === "draft" || p.state === "pending_review" || p.state === "rejected";
               return (
                 <li
                   key={p.id}
