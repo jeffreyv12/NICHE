@@ -69,7 +69,7 @@ export async function approvePageAction(pageId: string): Promise<PageActionResul
   const admin = await requireAdmin();
   const page = await loadPageForAdmin(pageId);
   if (!page) return { ok: false, error: "page not found" };
-  if (page.state !== "draft" && page.state !== "rejected") {
+  if (page.state !== "draft" && page.state !== "pending_review" && page.state !== "rejected") {
     return { ok: false, error: `cannot approve from state=${page.state}` };
   }
 

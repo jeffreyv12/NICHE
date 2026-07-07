@@ -7,6 +7,8 @@
 // CLAUDE.md #1: the button is the gate — no auto-registration ever.
 // CLAUDE.md #10: promotion gate is lagging on purpose.
 
+export const dynamic = "force-dynamic";
+
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "../../../../lib/auth";
 import { getServiceRoleSupabase } from "../../../../lib/supabase";

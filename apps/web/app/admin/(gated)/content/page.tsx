@@ -5,6 +5,8 @@
 // The content-polish job (apps/scrapers/src/jobs/content-polish.ts) runs nightly
 // and bumps pages from 'draft' to 'pending_review' after Opus polish.
 
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { requireAdmin } from "../../../../lib/auth";
 import { getServiceRoleSupabase } from "../../../../lib/supabase";

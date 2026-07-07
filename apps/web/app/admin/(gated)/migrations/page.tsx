@@ -4,6 +4,8 @@
 // each migration is on and whether any have failed. Running migrations are
 // kicked off by `node dist/bin/migration-once.js <migrationId>` on Hetzner.
 
+export const dynamic = "force-dynamic";
+
 import { requireAdmin } from "../../../../lib/auth";
 import { getServiceRoleSupabase } from "../../../../lib/supabase";
 

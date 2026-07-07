@@ -4,6 +4,8 @@
 // for it. Operator reviews each draft, then approves so the page becomes
 // publicly renderable on /sites/[tenant]/test/[niche]/[page_slug].
 
+export const dynamic = "force-dynamic";
+
 import { type ClaimVerificationResult, verifyClaims } from "@nichefinder/shared";
 import Link from "next/link";
 import { notFound } from "next/navigation";

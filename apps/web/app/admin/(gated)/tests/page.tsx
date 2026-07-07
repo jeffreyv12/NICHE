@@ -4,6 +4,8 @@
 // claim on a niche-detail page to clear the Claim Verifier block (4.3.3).
 // Photo upload (4.3.2) is deferred until the R2 bucket exists.
 
+export const dynamic = "force-dynamic";
+
 import { requireAdmin } from "../../../../lib/auth";
 import { getServiceRoleSupabase } from "../../../../lib/supabase";
 import { createFirstPartyTestAction } from "./actions";
