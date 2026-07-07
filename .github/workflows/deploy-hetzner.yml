@@ -12,7 +12,6 @@ on:
       - 'packages/db/**'
       - 'packages/shared/**'
       - 'infra/hetzner/**'
-      - '.github/workflows/deploy-hetzner.yml'
   workflow_dispatch: {}
 
 concurrency:

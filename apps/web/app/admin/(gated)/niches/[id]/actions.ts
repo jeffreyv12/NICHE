@@ -91,7 +91,7 @@ export async function approvePageAction(pageId: string): Promise<PageActionResul
   const { error } = await supabase
     .from("pages")
     .update({
-      state: "approved",
+      state: "published",
       approved_at: new Date().toISOString(),
       approved_by_email: admin.email,
     })
