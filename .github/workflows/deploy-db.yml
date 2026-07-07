@@ -36,7 +36,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Migrate (drizzle-kit migrate)
-        run: pnpm db:migrate
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL secret not set — skipping migration (add secret to enable)"
+            exit 0
+          fi
+          pnpm db:migrate
         env:
-          # Supabase direct (unpooled) URL; required by drizzle-kit.
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
