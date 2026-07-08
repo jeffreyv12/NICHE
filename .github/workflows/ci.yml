@@ -29,6 +29,8 @@ jobs:
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: "0"
 
       - name: Lint (Biome)
         run: pnpm lint
@@ -61,6 +63,8 @@ jobs:
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
+        env:
+          HUSKY: "0"
 
       - name: Check env parity
         run: node scripts/check-env-parity.mjs

@@ -35,6 +35,8 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm --filter @nichefinder/scrapers build
+        env:
+          HUSKY: "0"
 
       - name: Set up SSH
         if: ${{ env.HETZNER_HOST != '' }}
