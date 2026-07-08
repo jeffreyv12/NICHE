@@ -13,12 +13,17 @@ interface PageProps {
   params: Promise<{ tenant_slug: string }>;
 }
 
+interface NicheRow {
+  topic: string;
+  topic_slug: string;
+}
+
 interface PageRow {
   title: string;
   full_path: string;
   kind: string;
   niche_id: string | null;
-  niches: Array<{ topic: string; topic_slug: string }> | null;
+  niches: NicheRow | NicheRow[] | null;
 }
 
 interface TenantData {
@@ -72,7 +77,7 @@ async function loadUncached(tenantSlug: string): Promise<TenantData | null> {
 
   const groupMap = new Map<string | null, TenantData["groups"][0]>();
   for (const row of (rows ?? []) as unknown as PageRow[]) {
-    const niche = Array.isArray(row.niches) ? (row.niches[0] ?? null) : null;
+    const niche = Array.isArray(row.niches) ? (row.niches[0] ?? null) : (row.niches ?? null);
     const key = row.niche_id ?? "__ungrouped__";
     if (!groupMap.has(key)) {
       groupMap.set(key, {
