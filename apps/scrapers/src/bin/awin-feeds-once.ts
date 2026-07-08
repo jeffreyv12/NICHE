@@ -4,6 +4,8 @@
 // Run (PowerShell):
 //   Get-Content .env.local | ... ; & ".\apps\scrapers\node_modules\.bin\tsx.ps1" apps\scrapers\src\bin\awin-feeds-once.ts
 
+export {};
+
 const token = process.env.AWIN_API_TOKEN;
 const publisherId = process.env.AWIN_PUBLISHER_ID;
 
